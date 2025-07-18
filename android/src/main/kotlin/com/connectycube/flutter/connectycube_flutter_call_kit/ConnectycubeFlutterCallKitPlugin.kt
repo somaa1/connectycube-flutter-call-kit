@@ -154,6 +154,7 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                         .map { it.toInt() })
                     val callPhoto = arguments["photo_url"] as String?
                     val userInfo = arguments["user_info"] as String
+                    val customBodyText = arguments["custom_body_text"] as String?
 
                     showCallNotification(
                         applicationContext!!,
@@ -163,7 +164,8 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                         callInitiatorName,
                         callOpponents,
                         callPhoto,
-                        userInfo
+                        userInfo,
+                        customBodyText
                     )
 
                     saveCallState(applicationContext, callId, CALL_STATE_PENDING)
@@ -382,7 +384,8 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
 
 fun notifyAboutIncomingCall(
     context: Context, callId: String, callType: Int, callInitiatorId: Int,
-    callInitiatorName: String, callOpponents: ArrayList<Int>, callPhoto: String?, userInfo: String
+    callInitiatorName: String, callOpponents: ArrayList<Int>, callPhoto: String?, userInfo: String,
+    customBodyText: String? = null
 ) {
     val intent = Intent(ACTION_CALL_INCOMING)
         .putExtra(EXTRA_CALL_ID, callId)

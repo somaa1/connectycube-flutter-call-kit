@@ -16,6 +16,7 @@ class CallEvent {
     required this.opponentsIds,
     this.callPhoto,
     this.userInfo,
+    this.customBodyText,
   });
 
   final String sessionId;
@@ -31,6 +32,9 @@ class CallEvent {
   /// after setting it in method showCallNotification
   final Map<String, String>? userInfo;
 
+  /// Custom text for notification body (replaces default "Incoming Video call" text)
+  final String? customBodyText;
+
   CallEvent copyWith({
     String? sessionId,
     int? callType,
@@ -39,6 +43,7 @@ class CallEvent {
     Set<int>? opponentsIds,
     String? callPhoto,
     Map<String, String>? userInfo,
+    String? customBodyText,
   }) {
     return CallEvent(
       sessionId: sessionId ?? this.sessionId,
@@ -48,6 +53,7 @@ class CallEvent {
       opponentsIds: opponentsIds ?? this.opponentsIds,
       callPhoto: callPhoto ?? this.callPhoto,
       userInfo: userInfo ?? this.userInfo,
+      customBodyText: customBodyText ?? this.customBodyText,
     );
   }
 
@@ -60,6 +66,7 @@ class CallEvent {
       'call_opponents': opponentsIds.join(','),
       'photo_url': callPhoto,
       'user_info': jsonEncode(userInfo ?? <String, String>{}),
+      'custom_body_text': customBodyText,
     };
   }
 
@@ -76,6 +83,7 @@ class CallEvent {
       userInfo: map['user_info'] != null
           ? Map<String, String>.from(jsonDecode(map['user_info']))
           : null,
+      customBodyText: map['custom_body_text'] as String?,
     );
   }
 
@@ -93,7 +101,8 @@ class CallEvent {
         'callerName: $callerName, '
         'opponentsIds: $opponentsIds, '
         'callPhoto: $callPhoto, '
-        'userInfo: $userInfo)';
+        'userInfo: $userInfo, '
+        'customBodyText: $customBodyText)';
   }
 
   @override

@@ -38,7 +38,8 @@ fun cancelCallNotification(context: Context, callId: String) {
 
 fun showCallNotification(
     context: Context, callId: String, callType: Int, callInitiatorId: Int,
-    callInitiatorName: String, callOpponents: ArrayList<Int>, callPhoto: String?, userInfo: String
+    callInitiatorName: String, callOpponents: ArrayList<Int>, callPhoto: String?, userInfo: String,
+    customBodyText: String? = null
 ) {
     Log.d("NotificationsManager", "[showCallNotification]")
     val notificationManager = NotificationManagerCompat.from(context)
@@ -71,8 +72,8 @@ fun showCallNotification(
 
     val isVideoCall = callType == 1
 
-    val callTypeTitle =
-        String.format(CALL_TYPE_PLACEHOLDER, if (isVideoCall) "Video" else "Audio")
+    val callTypeTitle = customBodyText ?: String.format(CALL_TYPE_PLACEHOLDER, 
+        if (isVideoCall) "Video" else "Audio")
 
     val callData = Bundle()
     callData.putString(EXTRA_CALL_ID, callId)

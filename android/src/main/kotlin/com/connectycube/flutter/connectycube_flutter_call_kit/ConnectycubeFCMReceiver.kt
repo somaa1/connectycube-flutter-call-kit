@@ -78,6 +78,7 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
             callOpponents = ArrayList(callOpponentsString.split(',').map { it.toInt() })
         }
         val userInfo = data["user_info"] ?: JSONObject(emptyMap<String, String>()).toString()
+        val customBodyText = data["custom_body_text"]
 
         if (callType == null || callInitiatorId == null || callInitiatorName == null || callOpponents.isEmpty()) {
             Log.d(TAG, "[processInviteCallEvent] callType == null || callInitiatorId == null || callInitiatorName == null || callOpponents.isEmpty()")
@@ -92,7 +93,8 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
             callInitiatorName,
             callOpponents,
             callPhoto,
-            userInfo
+            userInfo,
+            customBodyText
         )
             
         showCallNotification(
@@ -103,7 +105,8 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
             callInitiatorName,
             callOpponents,
             callPhoto,
-            userInfo
+            userInfo,
+            customBodyText
         )
 
         saveCallState(applicationContext, callId, CALL_STATE_PENDING)
