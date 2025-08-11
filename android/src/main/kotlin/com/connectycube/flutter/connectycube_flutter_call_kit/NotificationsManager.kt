@@ -50,7 +50,7 @@ fun showCallNotification(
         "[showCallNotification] canUseFullScreenIntent: ${notificationManager.canUseFullScreenIntent()}"
     )
 
-    val intent = if (customNotificationRoute != null) {
+    val intent: Intent = if (customNotificationRoute != null) {
         // Create custom notification tap intent with route information
         Intent(context, EventReceiver::class.java).apply {
             action = ACTION_NOTIFICATION_TAP
@@ -64,7 +64,12 @@ fun showCallNotification(
             putExtra(EXTRA_CALL_USER_INFO, userInfo)
         }
     } else {
-        getLaunchIntent(context)
+        // Ensure a non-null activity intent for the content intent
+        (getLaunchIntent(context) ?: Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            `package` = context.packageName
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+        })
     }
 
     val pendingIntent = if (customNotificationRoute != null) {
@@ -339,7 +344,7 @@ fun addCallFullScreenIntent(
 }
 
 fun addCancelCallNotificationIntent(
-    appContext: Context?,
+    appContext: Context,
     notificationBuilder: NotificationCompat.Builder,
     requestCode: Int,
     callData: Bundle
