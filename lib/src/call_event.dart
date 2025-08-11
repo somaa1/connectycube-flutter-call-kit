@@ -17,6 +17,8 @@ class CallEvent {
     this.callPhoto,
     this.userInfo,
     this.customBodyText,
+    this.enableCustomLockScreen,
+    this.customNotificationRoute,
   });
 
   final String sessionId;
@@ -35,6 +37,12 @@ class CallEvent {
   /// Custom text for notification body (replaces default "Incoming Video call" text)
   final String? customBodyText;
 
+  /// Optional: Enable custom lock screen display alongside native CallKit/IncomingCall UI
+  final bool? enableCustomLockScreen;
+
+  /// Optional: Custom route/screen to show when notification is tapped (not accept/reject buttons)
+  final String? customNotificationRoute;
+
   CallEvent copyWith({
     String? sessionId,
     int? callType,
@@ -44,6 +52,8 @@ class CallEvent {
     String? callPhoto,
     Map<String, String>? userInfo,
     String? customBodyText,
+    bool? enableCustomLockScreen,
+    String? customNotificationRoute,
   }) {
     return CallEvent(
       sessionId: sessionId ?? this.sessionId,
@@ -54,6 +64,8 @@ class CallEvent {
       callPhoto: callPhoto ?? this.callPhoto,
       userInfo: userInfo ?? this.userInfo,
       customBodyText: customBodyText ?? this.customBodyText,
+      enableCustomLockScreen: enableCustomLockScreen ?? this.enableCustomLockScreen,
+      customNotificationRoute: customNotificationRoute ?? this.customNotificationRoute,
     );
   }
 
@@ -67,6 +79,8 @@ class CallEvent {
       'photo_url': callPhoto,
       'user_info': jsonEncode(userInfo ?? <String, String>{}),
       'custom_body_text': customBodyText,
+      'enable_custom_lock_screen': enableCustomLockScreen,
+      'custom_notification_route': customNotificationRoute,
     };
   }
 
@@ -84,6 +98,8 @@ class CallEvent {
           ? Map<String, String>.from(jsonDecode(map['user_info']))
           : null,
       customBodyText: map['custom_body_text'] as String?,
+      enableCustomLockScreen: map['enable_custom_lock_screen'] as bool?,
+      customNotificationRoute: map['custom_notification_route'] as String?,
     );
   }
 
@@ -102,7 +118,9 @@ class CallEvent {
         'opponentsIds: $opponentsIds, '
         'callPhoto: $callPhoto, '
         'userInfo: $userInfo, '
-        'customBodyText: $customBodyText)';
+        'customBodyText: $customBodyText, '
+        'enableCustomLockScreen: $enableCustomLockScreen, '
+        'customNotificationRoute: $customNotificationRoute)';
   }
 
   @override

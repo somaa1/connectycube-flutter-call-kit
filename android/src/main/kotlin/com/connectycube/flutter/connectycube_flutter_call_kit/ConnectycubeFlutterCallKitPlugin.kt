@@ -155,6 +155,8 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                     val callPhoto = arguments["photo_url"] as String?
                     val userInfo = arguments["user_info"] as String
                     val customBodyText = arguments["custom_body_text"] as String?
+                    val enableCustomLockScreen = arguments["enable_custom_lock_screen"] as Boolean?
+                    val customNotificationRoute = arguments["custom_notification_route"] as String?
 
                     showCallNotification(
                         applicationContext!!,
@@ -165,7 +167,9 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                         callOpponents,
                         callPhoto,
                         userInfo,
-                        customBodyText
+                        customBodyText,
+                        enableCustomLockScreen,
+                        customNotificationRoute
                     )
 
                     saveCallState(applicationContext, callId, CALL_STATE_PENDING)
@@ -186,11 +190,19 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                     val icon = arguments["icon"] as String?
                     val notificationIcon = arguments["notification_icon"] as String?
                     val color = arguments["color"] as String?
+                    val imageLoadingTimeout = arguments["image_loading_timeout"] as Int?
+                    val enableImageCaching = arguments["enable_image_caching"] as Boolean?
+                    val maxImageSize = arguments["max_image_size"] as Int?
 
                     putString(applicationContext!!, "ringtone", ringtone)
                     putString(applicationContext!!, "icon", icon)
                     putString(applicationContext!!, "notification_icon", notificationIcon)
                     putString(applicationContext!!, "color", color)
+                    
+                    // Store image configuration
+                    imageLoadingTimeout?.let { putInt(applicationContext!!, "image_loading_timeout", it) }
+                    enableImageCaching?.let { putBoolean(applicationContext!!, "enable_image_caching", it) }
+                    maxImageSize?.let { putInt(applicationContext!!, "max_image_size", it) }
 
                     result.success(null)
                 } catch (e: Exception) {
@@ -574,6 +586,7 @@ class CallStreamHandler(private var context: Context) : EventChannel.StreamHandl
         intentFilter.addAction(ACTION_CALL_REJECT)
         intentFilter.addAction(ACTION_CALL_ACCEPT)
         intentFilter.addAction(ACTION_CALL_INCOMING)
+        intentFilter.addAction(ACTION_NOTIFICATION_TAP)
         localBroadcastManager.registerReceiver(this, intentFilter)
     }
 
@@ -596,7 +609,7 @@ class CallStreamHandler(private var context: Context) : EventChannel.StreamHandl
 
             events?.success(parameters)
             return
-        } else if (ACTION_CALL_REJECT != action && ACTION_CALL_ACCEPT != action && ACTION_CALL_INCOMING != action) {
+        } else if (ACTION_CALL_REJECT != action && ACTION_CALL_ACCEPT != action && ACTION_CALL_INCOMING != action && ACTION_NOTIFICATION_TAP != action) {
             return
         }
 
@@ -613,6 +626,7 @@ class CallStreamHandler(private var context: Context) : EventChannel.StreamHandl
             intent.getIntegerArrayListExtra(EXTRA_CALL_OPPONENTS)?.joinToString(separator = ",")
         callEventMap["photo_url"] = intent.getStringExtra(EXTRA_CALL_PHOTO)
         callEventMap["user_info"] = intent.getStringExtra(EXTRA_CALL_USER_INFO)
+        callEventMap["custom_notification_route"] = intent.getStringExtra(EXTRA_CUSTOM_NOTIFICATION_ROUTE)
 
         Log.d("ConnectycubeFlutterCallKitPlugin", "callEventMap: $callEventMap")
 
@@ -642,6 +656,11 @@ class CallStreamHandler(private var context: Context) : EventChannel.StreamHandl
 
             ACTION_CALL_INCOMING -> {
                 callbackData["event"] = "incomingCall"
+                events?.success(callbackData)
+            }
+
+            ACTION_NOTIFICATION_TAP -> {
+                callbackData["event"] = "notificationTap"
                 events?.success(callbackData)
             }
         }

@@ -40,6 +40,24 @@ fun createStartIncomingScreenIntent(
     return intent
 }
 
+fun createCustomLockScreenIntent(
+    context: Context, callId: String, callType: Int, callInitiatorId: Int,
+    callInitiatorName: String, opponents: ArrayList<Int>, callPhoto: String?, userInfo: String
+): Intent {
+    val intent = getLaunchIntent(context) ?: Intent()
+    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    intent.action = ACTION_NOTIFICATION_TAP
+    intent.putExtra(EXTRA_CALL_ID, callId)
+    intent.putExtra(EXTRA_CALL_TYPE, callType)
+    intent.putExtra(EXTRA_CALL_INITIATOR_ID, callInitiatorId)
+    intent.putExtra(EXTRA_CALL_INITIATOR_NAME, callInitiatorName)
+    intent.putIntegerArrayListExtra(EXTRA_CALL_OPPONENTS, opponents)
+    intent.putExtra(EXTRA_CALL_PHOTO, callPhoto)
+    intent.putExtra(EXTRA_CALL_USER_INFO, userInfo)
+    intent.putExtra(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, true)
+    return intent
+}
+
 class IncomingCallActivity : Activity() {
     private lateinit var callStateReceiver: BroadcastReceiver
     private lateinit var localBroadcastManager: LocalBroadcastManager
@@ -51,6 +69,7 @@ class IncomingCallActivity : Activity() {
     private var callOpponents: ArrayList<Int>? = ArrayList()
     private var callPhoto: String? = null
     private var callUserInfo: String? = null
+    private var enableCustomLockScreen: Boolean = false
 
 
     override fun onCreate(@Nullable savedInstanceState: Bundle?) {
@@ -101,6 +120,11 @@ class IncomingCallActivity : Activity() {
         initUi()
         initCallStateReceiver()
         registerCallStateReceiver()
+        
+        // Launch custom screen if enabled
+        if (enableCustomLockScreen) {
+            launchCustomLockScreen()
+        }
     }
 
     private fun initCallStateReceiver() {
@@ -157,6 +181,7 @@ class IncomingCallActivity : Activity() {
         callOpponents = intent.getIntegerArrayListExtra(EXTRA_CALL_OPPONENTS)
         callPhoto = intent.getStringExtra(EXTRA_CALL_PHOTO)
         callUserInfo = intent.getStringExtra(EXTRA_CALL_USER_INFO)
+        enableCustomLockScreen = intent.getBooleanExtra(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, false)
     }
 
     private fun initUi() {
@@ -185,10 +210,47 @@ class IncomingCallActivity : Activity() {
         val defaultPhotoResId = getPhotoPlaceholderResId(applicationContext)
 
         if (!TextUtils.isEmpty(callPhoto)) {
-            Glide.with(applicationContext)
+            val imageSize = com.connectycube.flutter.connectycube_flutter_call_kit.utils.getMaxImageSize(applicationContext)
+            val cachingEnabled = com.connectycube.flutter.connectycube_flutter_call_kit.utils.getImageCachingEnabled(applicationContext)
+            val timeout = com.connectycube.flutter.connectycube_flutter_call_kit.utils.getImageLoadingTimeout(applicationContext)
+            
+            val glideRequest = Glide.with(applicationContext)
                 .load(callPhoto)
+                .override(imageSize, imageSize) // Use configurable image size
+                .timeout(timeout) // Use configurable timeout
                 .error(defaultPhotoResId)
                 .placeholder(defaultPhotoResId)
+                
+            // Apply caching strategy based on configuration
+            val finalRequest = if (cachingEnabled) {
+                glideRequest.diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
+            } else {
+                glideRequest.diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE)
+            }
+            
+            finalRequest
+                .listener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
+                    override fun onLoadFailed(
+                        e: com.bumptech.glide.load.engine.GlideException?,
+                        model: Any?,
+                        target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        Log.w("IncomingCallActivity", "Failed to load caller image: $callPhoto", e)
+                        return false // Let Glide handle the error with error drawable
+                    }
+                    
+                    override fun onResourceReady(
+                        resource: android.graphics.drawable.Drawable?,
+                        model: Any?,
+                        target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
+                        dataSource: com.bumptech.glide.load.DataSource?,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        Log.d("IncomingCallActivity", "Successfully loaded caller image: $callPhoto")
+                        return false // Let Glide display the image
+                    }
+                })
                 .into(avatarImg)
         } else {
             avatarImg.setImageResource(defaultPhotoResId)
@@ -235,5 +297,23 @@ class IncomingCallActivity : Activity() {
         startCallIntent.action = ACTION_CALL_ACCEPT
         startCallIntent.putExtras(bundle)
         applicationContext.sendBroadcast(startCallIntent)
+    }
+
+    private fun launchCustomLockScreen() {
+        try {
+            val customIntent = createCustomLockScreenIntent(
+                this,
+                callId!!,
+                callType,
+                callInitiatorId,
+                callInitiatorName!!,
+                callOpponents!!,
+                callPhoto,
+                callUserInfo!!
+            )
+            startActivity(customIntent)
+        } catch (e: Exception) {
+            Log.e("IncomingCallActivity", "Failed to launch custom lock screen", e)
+        }
     }
 }

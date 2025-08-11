@@ -39,7 +39,8 @@ fun cancelCallNotification(context: Context, callId: String) {
 fun showCallNotification(
     context: Context, callId: String, callType: Int, callInitiatorId: Int,
     callInitiatorName: String, callOpponents: ArrayList<Int>, callPhoto: String?, userInfo: String,
-    customBodyText: String? = null
+    customBodyText: String? = null, enableCustomLockScreen: Boolean? = null, 
+    customNotificationRoute: String? = null
 ) {
     Log.d("NotificationsManager", "[showCallNotification]")
     val notificationManager = NotificationManagerCompat.from(context)
@@ -49,15 +50,38 @@ fun showCallNotification(
         "[showCallNotification] canUseFullScreenIntent: ${notificationManager.canUseFullScreenIntent()}"
     )
 
-    val intent = getLaunchIntent(context)
+    val intent = if (customNotificationRoute != null) {
+        // Create custom notification tap intent with route information
+        Intent(context, EventReceiver::class.java).apply {
+            action = ACTION_NOTIFICATION_TAP
+            putExtra(EXTRA_CALL_ID, callId)
+            putExtra(EXTRA_CUSTOM_NOTIFICATION_ROUTE, customNotificationRoute)
+            putExtra(EXTRA_CALL_TYPE, callType)
+            putExtra(EXTRA_CALL_INITIATOR_ID, callInitiatorId)
+            putExtra(EXTRA_CALL_INITIATOR_NAME, callInitiatorName)
+            putExtra(EXTRA_CALL_OPPONENTS, callOpponents)
+            putExtra(EXTRA_CALL_PHOTO, callPhoto)
+            putExtra(EXTRA_CALL_USER_INFO, userInfo)
+        }
+    } else {
+        getLaunchIntent(context)
+    }
 
-    val pendingIntent = PendingIntent.getActivity(
-        context,
-        callId.hashCode(),
-        intent,
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
-
-    )
+    val pendingIntent = if (customNotificationRoute != null) {
+        PendingIntent.getBroadcast(
+            context,
+            callId.hashCode(),
+            intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    } else {
+        PendingIntent.getActivity(
+            context,
+            callId.hashCode(),
+            intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
 
     var ringtone: Uri
 
@@ -83,6 +107,8 @@ fun showCallNotification(
     callData.putIntegerArrayList(EXTRA_CALL_OPPONENTS, callOpponents)
     callData.putString(EXTRA_CALL_PHOTO, callPhoto)
     callData.putString(EXTRA_CALL_USER_INFO, userInfo)
+    callData.putBoolean(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, enableCustomLockScreen ?: false)
+    callData.putString(EXTRA_CUSTOM_NOTIFICATION_ROUTE, customNotificationRoute)
 
     val defaultPhoto = getDefaultPhoto(context)
 
@@ -107,7 +133,8 @@ fun showCallNotification(
         callInitiatorName,
         callOpponents,
         callPhoto,
-        userInfo
+        userInfo,
+        enableCustomLockScreen
     )
 
     // Add action when delete call notification
@@ -163,13 +190,25 @@ fun loadPhotoAndPostNotification(
         val photoPlaceholder = getPhotoPlaceholderResId(context)
 
         if (!TextUtils.isEmpty(photoUrl)) {
-            val futureTarget = Glide.with(context)
+            val imageSize = com.connectycube.flutter.connectycube_flutter_call_kit.utils.getMaxImageSize(context)
+            val cachingEnabled = com.connectycube.flutter.connectycube_flutter_call_kit.utils.getImageCachingEnabled(context)
+            val timeout = com.connectycube.flutter.connectycube_flutter_call_kit.utils.getImageLoadingTimeout(context)
+            
+            val glideRequest = Glide.with(context)
                 .asBitmap()
                 .load(photoUrl)
+                .override(imageSize, imageSize) // Use configurable image size
+                .timeout(timeout) // Use configurable timeout
                 .transform(CircleCrop())
                 .error(photoPlaceholder)
                 .placeholder(photoPlaceholder)
-                .submit()
+            
+            // Apply caching strategy based on configuration
+            val futureTarget = if (cachingEnabled) {
+                glideRequest.diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
+            } else {
+                glideRequest.diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE)
+            }.submit()
 
             try {
                 val bitmap = futureTarget.get()
@@ -177,8 +216,10 @@ fun loadPhotoAndPostNotification(
 
                 Glide.with(context).clear(futureTarget)
 
+                Log.d("NotificationsManager", "Successfully loaded caller image: $photoUrl")
                 postNotification(notificationId, notificationManager, builder)
             } catch (e: Exception) {
+                Log.w("NotificationsManager", "Failed to load caller image: $photoUrl", e)
                 builder.setLargeIcon(defaultPhoto)
                 postNotification(notificationId, notificationManager, builder)
             }
@@ -271,7 +312,8 @@ fun addCallFullScreenIntent(
     callInitiatorName: String,
     callOpponents: ArrayList<Int>,
     callPhoto: String?,
-    userInfo: String
+    userInfo: String,
+    enableCustomLockScreen: Boolean? = null
 ) {
     val callFullScreenIntent: Intent = createStartIncomingScreenIntent(
         context,
@@ -283,6 +325,10 @@ fun addCallFullScreenIntent(
         callPhoto,
         userInfo
     )
+    // Add custom lock screen flag if enabled
+    if (enableCustomLockScreen == true) {
+        callFullScreenIntent.putExtra(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, true)
+    }
     val fullScreenPendingIntent = PendingIntent.getActivity(
         context,
         callId.hashCode(),

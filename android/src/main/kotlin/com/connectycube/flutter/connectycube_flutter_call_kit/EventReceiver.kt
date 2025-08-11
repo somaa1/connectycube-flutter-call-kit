@@ -22,6 +22,45 @@ class EventReceiver : BroadcastReceiver() {
         Log.d(TAG, "NotificationReceiver onReceive action: ${intent.action}")
 
         when (intent.action) {
+            ACTION_NOTIFICATION_TAP -> {
+                val extras = intent.extras
+                val callId = extras?.getString(EXTRA_CALL_ID)
+                val customRoute = extras?.getString(EXTRA_CUSTOM_NOTIFICATION_ROUTE)
+                val callType = extras?.getInt(EXTRA_CALL_TYPE)
+                val callInitiatorId = extras?.getInt(EXTRA_CALL_INITIATOR_ID)
+                val callInitiatorName = extras?.getString(EXTRA_CALL_INITIATOR_NAME)
+                val callOpponents = extras?.getIntegerArrayList(EXTRA_CALL_OPPONENTS)
+                val callPhoto = extras?.getString(EXTRA_CALL_PHOTO)
+                val userInfo = extras?.getString(EXTRA_CALL_USER_INFO)
+                
+                Log.i(TAG, "NotificationReceiver onReceive NOTIFICATION TAP, callId: $callId, route: $customRoute")
+
+                // Send notification tap event to Flutter
+                val broadcastIntent = Intent(ACTION_NOTIFICATION_TAP)
+                val bundle = Bundle()
+                bundle.putString(EXTRA_CALL_ID, callId)
+                bundle.putString(EXTRA_CUSTOM_NOTIFICATION_ROUTE, customRoute)
+                bundle.putInt(EXTRA_CALL_TYPE, callType!!)
+                bundle.putInt(EXTRA_CALL_INITIATOR_ID, callInitiatorId!!)
+                bundle.putString(EXTRA_CALL_INITIATOR_NAME, callInitiatorName)
+                bundle.putIntegerArrayList(EXTRA_CALL_OPPONENTS, callOpponents)
+                bundle.putString(EXTRA_CALL_PHOTO, callPhoto)
+                bundle.putString(EXTRA_CALL_USER_INFO, userInfo)
+                broadcastIntent.putExtras(bundle)
+
+                LocalBroadcastManager.getInstance(context.applicationContext)
+                    .sendBroadcast(broadcastIntent)
+
+                // Launch app with custom route if specified
+                val launchIntent = getLaunchIntent(context)
+                launchIntent?.apply {
+                    action = ACTION_NOTIFICATION_TAP
+                    putExtras(bundle)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                context.startActivity(launchIntent)
+            }
+
             ACTION_CALL_REJECT -> {
                 val extras = intent.extras
                 val callId = extras?.getString(EXTRA_CALL_ID)

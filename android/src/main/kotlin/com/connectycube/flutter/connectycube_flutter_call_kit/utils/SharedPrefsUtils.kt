@@ -81,3 +81,16 @@ fun remove(context: Context, key: String) {
     editor!!.remove(key)
     editor!!.commit()
 }
+
+// Image configuration helpers
+fun getImageLoadingTimeout(context: Context): Int {
+    return getInt(context, "image_loading_timeout").takeIf { it != DEFAULT_INT_VALUE } ?: 10000
+}
+
+fun getImageCachingEnabled(context: Context): Boolean {
+    return getBoolean(context, "enable_image_caching")
+}
+
+fun getMaxImageSize(context: Context): Int {
+    return getInt(context, "max_image_size").takeIf { it != DEFAULT_INT_VALUE } ?: 300
+}

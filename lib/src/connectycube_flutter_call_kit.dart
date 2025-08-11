@@ -54,6 +54,9 @@ class ConnectycubeFlutterCallKit {
 
   static CallEventHandler? _onCallIncoming;
 
+  /// Notification tap callback (when notification is tapped, not accept/reject buttons)
+  static CallEventHandler? _onNotificationTap;
+
   /// Initialize the plugin and provided user callbacks.
   ///
   /// - This function should only be called once at the beginning of
@@ -62,6 +65,7 @@ class ConnectycubeFlutterCallKit {
       {CallEventHandler? onCallAccepted,
       CallEventHandler? onCallRejected,
       CallEventHandler? onCallIncoming,
+      CallEventHandler? onNotificationTap,
       String? ringtone,
       String? icon,
       @Deprecated('Use `AndroidManifest.xml` meta-data instead')
@@ -70,6 +74,7 @@ class ConnectycubeFlutterCallKit {
     _onCallAccepted = onCallAccepted;
     _onCallRejected = onCallRejected;
     _onCallIncoming = onCallIncoming;
+    _onNotificationTap = onNotificationTap;
 
     updateConfig(
         ringtone: ringtone,
@@ -155,16 +160,22 @@ class ConnectycubeFlutterCallKit {
   }
 
   /// Sets the additional configs for the Call notification
-  /// [ringtone] - the name of the ringtone source (for Anfroid it should be placed by path 'res/raw', for iOS it is a name of ringtone)
-  /// [icon] - the name of image in the `drawable` folder for Android and the name of Assests set for iOS
+  /// [ringtone] - the name of the ringtone source (for Android it should be placed by path 'res/raw', for iOS it is a name of ringtone)
+  /// [icon] - the name of image in the `drawable` folder for Android and the name of Assets set for iOS
   /// [notificationIcon] - the name of the image in the `drawable` folder, uses as Notification Small Icon for Android, ignored for iOS
   /// [color] - the color in the format '#RRGGBB', uses as an Android Notification accent color, ignored for iOS
+  /// [imageLoadingTimeout] - timeout in milliseconds for loading caller images (Android only, default: 10000)
+  /// [enableImageCaching] - enable disk caching for caller images (Android only, default: true)
+  /// [maxImageSize] - maximum size in pixels for caller images (Android only, default: 300)
   Future<void> updateConfig(
       {String? ringtone,
       String? icon,
       @Deprecated('Use `AndroidManifest.xml` meta-data instead')
       String? notificationIcon,
-      String? color}) {
+      String? color,
+      int? imageLoadingTimeout,
+      bool? enableImageCaching,
+      int? maxImageSize}) {
     if (!Platform.isAndroid && !Platform.isIOS) return Future.value();
 
     return _methodChannel.invokeMethod('updateConfig', {
@@ -172,6 +183,9 @@ class ConnectycubeFlutterCallKit {
       'icon': icon,
       'notification_icon': notificationIcon,
       'color': color,
+      'image_loading_timeout': imageLoadingTimeout,
+      'enable_image_caching': enableImageCaching,
+      'max_image_size': maxImageSize,
     });
   }
 
@@ -357,6 +371,11 @@ class ConnectycubeFlutterCallKit {
       case 'incomingCall':
         var callEvent = CallEvent.fromMap(arguments);
         _onCallIncoming?.call(callEvent);
+        break;
+
+      case 'notificationTap':
+        var callEvent = CallEvent.fromMap(arguments);
+        _onNotificationTap?.call(callEvent);
         break;
 
       case '':
