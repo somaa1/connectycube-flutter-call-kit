@@ -16,6 +16,9 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.RelativeLayout
+import android.widget.LinearLayout
+import android.graphics.Color
 import androidx.annotation.Nullable
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.bumptech.glide.Glide
@@ -169,7 +172,7 @@ class IncomingCallActivity : Activity() {
         val mainBackground = findViewById<RelativeLayout>(resources.getIdentifier("main_background", "id", packageName))
         if (!TextUtils.isEmpty(backgroundColor)) {
             try {
-                val color = android.graphics.Color.parseColor(backgroundColor)
+                val color = Color.parseColor(backgroundColor)
                 mainBackground.setBackgroundColor(color)
             } catch (e: Exception) {
                 Log.w("IncomingCallActivity", "Invalid background color: $backgroundColor", e)
@@ -188,12 +191,12 @@ class IncomingCallActivity : Activity() {
         val messageLabelTxt = findViewById<TextView>(resources.getIdentifier("message_label_txt", "id", packageName))
         
         if (!TextUtils.isEmpty(customBodyText)) {
-            messageContainer.visibility = android.view.View.VISIBLE
-            messageLabelTxt.visibility = android.view.View.VISIBLE
+            messageContainer.visibility = View.VISIBLE
+            messageLabelTxt.visibility = View.VISIBLE
             customMessageTxt.text = customBodyText
         } else {
-            messageContainer.visibility = android.view.View.GONE
-            messageLabelTxt.visibility = android.view.View.GONE
+            messageContainer.visibility = View.GONE
+            messageLabelTxt.visibility = View.GONE
         }
 
         val avatarImg: ShapeableImageView =
