@@ -8,7 +8,7 @@ const val EXTRA_CALL_OPPONENTS = "extra_call_opponents"
 const val EXTRA_CALL_USER_INFO = "extra_call_user_info"
 const val EXTRA_PUSH_TOKEN = "extra_push_token"
 const val EXTRA_CALL_PHOTO = "photo_url"
-const val EXTRA_ENABLE_CUSTOM_LOCK_SCREEN = "enable_custom_lock_screen"
+const val EXTRA_BACKGROUND_COLOR = "background_color"
 const val EXTRA_CUSTOM_NOTIFICATION_ROUTE = "custom_notification_route"
 
 const val ACTION_CALL_ACCEPT = "action_call_accept"

@@ -39,7 +39,7 @@ fun cancelCallNotification(context: Context, callId: String) {
 fun showCallNotification(
     context: Context, callId: String, callType: Int, callInitiatorId: Int,
     callInitiatorName: String, callOpponents: ArrayList<Int>, callPhoto: String?, userInfo: String,
-    customBodyText: String? = null, enableCustomLockScreen: Boolean? = null, 
+    customBodyText: String? = null, backgroundColor: String? = null, 
     customNotificationRoute: String? = null
 ) {
     Log.d("NotificationsManager", "[showCallNotification]")
@@ -112,7 +112,7 @@ fun showCallNotification(
     callData.putIntegerArrayList(EXTRA_CALL_OPPONENTS, callOpponents)
     callData.putString(EXTRA_CALL_PHOTO, callPhoto)
     callData.putString(EXTRA_CALL_USER_INFO, userInfo)
-    callData.putBoolean(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, enableCustomLockScreen ?: false)
+    callData.putString(EXTRA_BACKGROUND_COLOR, backgroundColor)
     callData.putString(EXTRA_CUSTOM_NOTIFICATION_ROUTE, customNotificationRoute)
 
     val defaultPhoto = getDefaultPhoto(context)
@@ -139,7 +139,7 @@ fun showCallNotification(
         callOpponents,
         callPhoto,
         userInfo,
-        enableCustomLockScreen
+        backgroundColor
     )
 
     // Add action when delete call notification
@@ -318,7 +318,7 @@ fun addCallFullScreenIntent(
     callOpponents: ArrayList<Int>,
     callPhoto: String?,
     userInfo: String,
-    enableCustomLockScreen: Boolean? = null
+    backgroundColor: String? = null
 ) {
     val callFullScreenIntent: Intent = createStartIncomingScreenIntent(
         context,
@@ -330,9 +330,9 @@ fun addCallFullScreenIntent(
         callPhoto,
         userInfo
     )
-    // Add custom lock screen flag if enabled
-    if (enableCustomLockScreen == true) {
-        callFullScreenIntent.putExtra(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, true)
+    // Add background color if provided
+    if (backgroundColor != null) {
+        callFullScreenIntent.putExtra(EXTRA_BACKGROUND_COLOR, backgroundColor)
     }
     val fullScreenPendingIntent = PendingIntent.getActivity(
         context,

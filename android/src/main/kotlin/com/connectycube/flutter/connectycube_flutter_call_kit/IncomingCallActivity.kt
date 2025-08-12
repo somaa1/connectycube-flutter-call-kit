@@ -40,23 +40,6 @@ fun createStartIncomingScreenIntent(
     return intent
 }
 
-fun createCustomLockScreenIntent(
-    context: Context, callId: String, callType: Int, callInitiatorId: Int,
-    callInitiatorName: String, opponents: ArrayList<Int>, callPhoto: String?, userInfo: String
-): Intent {
-    val intent = getLaunchIntent(context) ?: Intent()
-    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-    intent.action = ACTION_NOTIFICATION_TAP
-    intent.putExtra(EXTRA_CALL_ID, callId)
-    intent.putExtra(EXTRA_CALL_TYPE, callType)
-    intent.putExtra(EXTRA_CALL_INITIATOR_ID, callInitiatorId)
-    intent.putExtra(EXTRA_CALL_INITIATOR_NAME, callInitiatorName)
-    intent.putIntegerArrayListExtra(EXTRA_CALL_OPPONENTS, opponents)
-    intent.putExtra(EXTRA_CALL_PHOTO, callPhoto)
-    intent.putExtra(EXTRA_CALL_USER_INFO, userInfo)
-    intent.putExtra(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, true)
-    return intent
-}
 
 class IncomingCallActivity : Activity() {
     private lateinit var callStateReceiver: BroadcastReceiver
@@ -69,7 +52,8 @@ class IncomingCallActivity : Activity() {
     private var callOpponents: ArrayList<Int>? = ArrayList()
     private var callPhoto: String? = null
     private var callUserInfo: String? = null
-    private var enableCustomLockScreen: Boolean = false
+    private var backgroundColor: String? = null
+    private var customBodyText: String? = null
 
 
     override fun onCreate(@Nullable savedInstanceState: Bundle?) {
@@ -120,11 +104,6 @@ class IncomingCallActivity : Activity() {
         initUi()
         initCallStateReceiver()
         registerCallStateReceiver()
-        
-        // Launch custom screen if enabled
-        if (enableCustomLockScreen) {
-            launchCustomLockScreen()
-        }
     }
 
     private fun initCallStateReceiver() {
@@ -181,28 +160,41 @@ class IncomingCallActivity : Activity() {
         callOpponents = intent.getIntegerArrayListExtra(EXTRA_CALL_OPPONENTS)
         callPhoto = intent.getStringExtra(EXTRA_CALL_PHOTO)
         callUserInfo = intent.getStringExtra(EXTRA_CALL_USER_INFO)
-        enableCustomLockScreen = intent.getBooleanExtra(EXTRA_ENABLE_CUSTOM_LOCK_SCREEN, false)
+        backgroundColor = intent.getStringExtra(EXTRA_BACKGROUND_COLOR)
+        customBodyText = intent.getStringExtra("custom_body_text")
     }
 
     private fun initUi() {
+        // Apply dynamic background color
+        val mainBackground = findViewById<RelativeLayout>(resources.getIdentifier("main_background", "id", packageName))
+        if (!TextUtils.isEmpty(backgroundColor)) {
+            try {
+                val color = android.graphics.Color.parseColor(backgroundColor)
+                mainBackground.setBackgroundColor(color)
+            } catch (e: Exception) {
+                Log.w("IncomingCallActivity", "Invalid background color: $backgroundColor", e)
+                // Keep default color if parsing fails
+            }
+        }
+
+        // Set caller name
         val callTitleTxt: TextView =
             findViewById(resources.getIdentifier("user_name_txt", "id", packageName))
         callTitleTxt.text = callInitiatorName
-        val callSubTitleTxt: TextView =
-            findViewById(resources.getIdentifier("call_type_txt", "id", packageName))
-        callSubTitleTxt.text =
-            String.format(CALL_TYPE_PLACEHOLDER, if (callType == 1) "Video" else "Audio")
 
-        val callAcceptButton: ImageView =
-            findViewById(resources.getIdentifier("start_call_btn", "id", packageName))
-        val acceptButtonIconName = if (callType == 1) "ic_video_call_start" else "ic_call_start"
-        callAcceptButton.setImageResource(
-            resources.getIdentifier(
-                acceptButtonIconName,
-                "drawable",
-                packageName
-            )
-        )
+        // Handle custom message display
+        val messageContainer = findViewById<LinearLayout>(resources.getIdentifier("message_container", "id", packageName))
+        val customMessageTxt = findViewById<TextView>(resources.getIdentifier("custom_message_txt", "id", packageName))
+        val messageLabelTxt = findViewById<TextView>(resources.getIdentifier("message_label_txt", "id", packageName))
+        
+        if (!TextUtils.isEmpty(customBodyText)) {
+            messageContainer.visibility = android.view.View.VISIBLE
+            messageLabelTxt.visibility = android.view.View.VISIBLE
+            customMessageTxt.text = customBodyText
+        } else {
+            messageContainer.visibility = android.view.View.GONE
+            messageLabelTxt.visibility = android.view.View.GONE
+        }
 
         val avatarImg: ShapeableImageView =
             findViewById(resources.getIdentifier("avatar_img", "id", packageName))
@@ -255,14 +247,6 @@ class IncomingCallActivity : Activity() {
         } else {
             avatarImg.setImageResource(defaultPhotoResId)
         }
-
-        val acceptButtonAnimation: RippleBackground =
-            findViewById(resources.getIdentifier("accept_button_animation", "id", packageName))
-        acceptButtonAnimation.startRippleAnimation()
-
-        val rejectButtonAnimation: RippleBackground =
-            findViewById(resources.getIdentifier("reject_button_animation", "id", packageName))
-        rejectButtonAnimation.startRippleAnimation()
     }
 
     // calls from layout file
@@ -299,21 +283,4 @@ class IncomingCallActivity : Activity() {
         applicationContext.sendBroadcast(startCallIntent)
     }
 
-    private fun launchCustomLockScreen() {
-        try {
-            val customIntent = createCustomLockScreenIntent(
-                this,
-                callId!!,
-                callType,
-                callInitiatorId,
-                callInitiatorName!!,
-                callOpponents!!,
-                callPhoto,
-                callUserInfo!!
-            )
-            startActivity(customIntent)
-        } catch (e: Exception) {
-            Log.e("IncomingCallActivity", "Failed to launch custom lock screen", e)
-        }
-    }
 }

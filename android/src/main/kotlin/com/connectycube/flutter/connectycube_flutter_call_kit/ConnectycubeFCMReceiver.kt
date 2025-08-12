@@ -79,6 +79,7 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
         }
         val userInfo = data["user_info"] ?: JSONObject(emptyMap<String, String>()).toString()
         val customBodyText = data["custom_body_text"]
+        val backgroundColor = data["background_color"]
 
         if (callType == null || callInitiatorId == null || callInitiatorName == null || callOpponents.isEmpty()) {
             Log.d(TAG, "[processInviteCallEvent] callType == null || callInitiatorId == null || callInitiatorName == null || callOpponents.isEmpty()")
@@ -106,7 +107,8 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
             callOpponents,
             callPhoto,
             userInfo,
-            customBodyText
+            customBodyText,
+            backgroundColor
         )
 
         saveCallState(applicationContext, callId, CALL_STATE_PENDING)

@@ -17,7 +17,7 @@ class CallEvent {
     this.callPhoto,
     this.userInfo,
     this.customBodyText,
-    this.enableCustomLockScreen,
+    this.backgroundColor,
     this.customNotificationRoute,
   });
 
@@ -37,8 +37,8 @@ class CallEvent {
   /// Custom text for notification body (replaces default "Incoming Video call" text)
   final String? customBodyText;
 
-  /// Optional: Enable custom lock screen display alongside native CallKit/IncomingCall UI
-  final bool? enableCustomLockScreen;
+  /// Background color for the incoming call screen (hex format: "#FF6B6B")
+  final String? backgroundColor;
 
   /// Optional: Custom route/screen to show when notification is tapped (not accept/reject buttons)
   final String? customNotificationRoute;
@@ -52,7 +52,7 @@ class CallEvent {
     String? callPhoto,
     Map<String, String>? userInfo,
     String? customBodyText,
-    bool? enableCustomLockScreen,
+    String? backgroundColor,
     String? customNotificationRoute,
   }) {
     return CallEvent(
@@ -64,7 +64,7 @@ class CallEvent {
       callPhoto: callPhoto ?? this.callPhoto,
       userInfo: userInfo ?? this.userInfo,
       customBodyText: customBodyText ?? this.customBodyText,
-      enableCustomLockScreen: enableCustomLockScreen ?? this.enableCustomLockScreen,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
       customNotificationRoute: customNotificationRoute ?? this.customNotificationRoute,
     );
   }
@@ -79,7 +79,7 @@ class CallEvent {
       'photo_url': callPhoto,
       'user_info': jsonEncode(userInfo ?? <String, String>{}),
       'custom_body_text': customBodyText,
-      'enable_custom_lock_screen': enableCustomLockScreen,
+      'background_color': backgroundColor,
       'custom_notification_route': customNotificationRoute,
     };
   }
@@ -98,7 +98,7 @@ class CallEvent {
           ? Map<String, String>.from(jsonDecode(map['user_info']))
           : null,
       customBodyText: map['custom_body_text'] as String?,
-      enableCustomLockScreen: map['enable_custom_lock_screen'] as bool?,
+      backgroundColor: map['background_color'] as String?,
       customNotificationRoute: map['custom_notification_route'] as String?,
     );
   }
@@ -119,7 +119,7 @@ class CallEvent {
         'callPhoto: $callPhoto, '
         'userInfo: $userInfo, '
         'customBodyText: $customBodyText, '
-        'enableCustomLockScreen: $enableCustomLockScreen, '
+        'backgroundColor: $backgroundColor, '
         'customNotificationRoute: $customNotificationRoute)';
   }
 

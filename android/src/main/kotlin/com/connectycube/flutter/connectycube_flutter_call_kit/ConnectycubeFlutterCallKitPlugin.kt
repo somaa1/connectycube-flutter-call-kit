@@ -155,7 +155,7 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                     val callPhoto = arguments["photo_url"] as String?
                     val userInfo = arguments["user_info"] as String
                     val customBodyText = arguments["custom_body_text"] as String?
-                    val enableCustomLockScreen = arguments["enable_custom_lock_screen"] as Boolean?
+                    val backgroundColor = arguments["background_color"] as String?
                     val customNotificationRoute = arguments["custom_notification_route"] as String?
 
                     showCallNotification(
@@ -168,7 +168,7 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                         callPhoto,
                         userInfo,
                         customBodyText,
-                        enableCustomLockScreen,
+                        backgroundColor,
                         customNotificationRoute
                     )
 
