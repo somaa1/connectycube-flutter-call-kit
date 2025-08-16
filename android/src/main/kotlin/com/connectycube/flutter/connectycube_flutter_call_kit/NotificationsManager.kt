@@ -139,7 +139,8 @@ fun showCallNotification(
         callOpponents,
         callPhoto,
         userInfo,
-        backgroundColor
+        backgroundColor,
+        customBodyText
     )
 
     // Add action when delete call notification
@@ -318,7 +319,8 @@ fun addCallFullScreenIntent(
     callOpponents: ArrayList<Int>,
     callPhoto: String?,
     userInfo: String,
-    backgroundColor: String? = null
+    backgroundColor: String? = null,
+    customBodyText: String? = null
 ) {
     val callFullScreenIntent: Intent = createStartIncomingScreenIntent(
         context,
@@ -328,7 +330,8 @@ fun addCallFullScreenIntent(
         callInitiatorName,
         callOpponents,
         callPhoto,
-        userInfo
+        userInfo,
+        customBodyText
     )
     // Add background color if provided
     if (backgroundColor != null) {

@@ -29,7 +29,8 @@ import com.skyfishjy.library.RippleBackground
 
 fun createStartIncomingScreenIntent(
     context: Context, callId: String, callType: Int, callInitiatorId: Int,
-    callInitiatorName: String, opponents: ArrayList<Int>, callPhoto: String?, userInfo: String
+    callInitiatorName: String, opponents: ArrayList<Int>, callPhoto: String?, userInfo: String,
+    customBodyText: String? = null
 ): Intent {
     val intent = Intent(context, IncomingCallActivity::class.java)
     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -40,6 +41,7 @@ fun createStartIncomingScreenIntent(
     intent.putIntegerArrayListExtra(EXTRA_CALL_OPPONENTS, opponents)
     intent.putExtra(EXTRA_CALL_PHOTO, callPhoto)
     intent.putExtra(EXTRA_CALL_USER_INFO, userInfo)
+    intent.putExtra(EXTRA_CUSTOM_BODY_TEXT, customBodyText)
     return intent
 }
 
@@ -164,7 +166,7 @@ class IncomingCallActivity : Activity() {
         callPhoto = intent.getStringExtra(EXTRA_CALL_PHOTO)
         callUserInfo = intent.getStringExtra(EXTRA_CALL_USER_INFO)
         backgroundColor = intent.getStringExtra(EXTRA_BACKGROUND_COLOR)
-        customBodyText = intent.getStringExtra("custom_body_text")
+        customBodyText = intent.getStringExtra(EXTRA_CUSTOM_BODY_TEXT)
     }
 
     private fun initUi() {
@@ -249,6 +251,12 @@ class IncomingCallActivity : Activity() {
                 .into(avatarImg)
         } else {
             avatarImg.setImageResource(defaultPhotoResId)
+        }
+        
+        // Setup slide to answer button
+        val slideToAnswerBtn = findViewById<SlideToAnswerView>(resources.getIdentifier("slide_to_answer_btn", "id", packageName))
+        slideToAnswerBtn.setOnSlideCompleteListener {
+            onStartCall(null)
         }
     }
 
