@@ -153,7 +153,7 @@ class SlideToAnswerView @JvmOverloads constructor(
                     
                     // Haptic feedback when near completion
                     if (slidePosition > maxSlideDistance * slideThreshold && slidePosition < maxSlideDistance * (slideThreshold + 0.1f)) {
-                        performHapticFeedback(HAPTIC_FEEDBACK_LIGHT_IMPACT)
+                        performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                     }
                     
                     return true
