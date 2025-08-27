@@ -124,10 +124,14 @@ class IncomingCallActivity : Activity() {
                 }
                 when (action) {
                     ACTION_CALL_NOTIFICATION_CANCELED, ACTION_CALL_REJECT, ACTION_CALL_ENDED -> {
+                        Log.d("IncomingCallActivity", "[BroadcastReceiver] Received call end signal: $action for call: $callIdToProcess")
                         finishAndRemoveTask()
                     }
 
-                    ACTION_CALL_ACCEPT -> finishDelayed()
+                    ACTION_CALL_ACCEPT -> {
+                        Log.d("IncomingCallActivity", "[BroadcastReceiver] Received call accept signal for call: $callIdToProcess")
+                        finishDelayed()
+                    }
                 }
             }
         }
@@ -155,6 +159,12 @@ class IncomingCallActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         unRegisterCallStateReceiver()
+        Log.d("IncomingCallActivity", "[onDestroy] Incoming call activity destroyed for call: $callId")
+    }
+
+    override fun finishAndRemoveTask() {
+        Log.d("IncomingCallActivity", "[finishAndRemoveTask] Closing incoming call activity for call: $callId")
+        super.finishAndRemoveTask()
     }
 
     private fun processIncomingData(intent: Intent) {
@@ -270,6 +280,8 @@ class IncomingCallActivity : Activity() {
         bundle.putIntegerArrayList(EXTRA_CALL_OPPONENTS, callOpponents)
         bundle.putString(EXTRA_CALL_PHOTO, callPhoto)
         bundle.putString(EXTRA_CALL_USER_INFO, callUserInfo)
+        bundle.putString(EXTRA_BACKGROUND_COLOR, backgroundColor)
+        bundle.putString(EXTRA_CUSTOM_BODY_TEXT, customBodyText)
 
         val endCallIntent = Intent(this, EventReceiver::class.java)
         endCallIntent.action = ACTION_CALL_REJECT
@@ -287,11 +299,45 @@ class IncomingCallActivity : Activity() {
         bundle.putIntegerArrayList(EXTRA_CALL_OPPONENTS, callOpponents)
         bundle.putString(EXTRA_CALL_PHOTO, callPhoto)
         bundle.putString(EXTRA_CALL_USER_INFO, callUserInfo)
+        bundle.putString(EXTRA_BACKGROUND_COLOR, backgroundColor)
+        bundle.putString(EXTRA_CUSTOM_BODY_TEXT, customBodyText)
+
+        // Ensure caller information is persisted in call data before accepting
+        persistCallerInformation()
 
         val startCallIntent = Intent(this, EventReceiver::class.java)
         startCallIntent.action = ACTION_CALL_ACCEPT
         startCallIntent.putExtras(bundle)
         applicationContext.sendBroadcast(startCallIntent)
+    }
+
+    private fun persistCallerInformation() {
+        // Save caller information to ensure it's available throughout the call
+        if (callId != null && callInitiatorName != null) {
+            try {
+                val callerData = mapOf(
+                    "session_id" to callId,
+                    "caller_name" to callInitiatorName,
+                    "caller_id" to callInitiatorId.toString(),
+                    "call_type" to callType.toString(),
+                    "call_photo" to (callPhoto ?: ""),
+                    "background_color" to (backgroundColor ?: ""),
+                    "custom_body_text" to (customBodyText ?: "")
+                )
+                
+                // Store in SharedPreferences for persistence across activities
+                val prefs = getSharedPreferences("connectycube_call_data", Context.MODE_PRIVATE)
+                val editor = prefs.edit()
+                callerData.forEach { (key, value) ->
+                    editor.putString("${callId}_${key}", value)
+                }
+                editor.apply()
+                
+                Log.d("IncomingCallActivity", "Persisted caller information for call: $callId, caller: $callInitiatorName")
+            } catch (e: Exception) {
+                Log.e("IncomingCallActivity", "Failed to persist caller information", e)
+            }
+        }
     }
 
 }

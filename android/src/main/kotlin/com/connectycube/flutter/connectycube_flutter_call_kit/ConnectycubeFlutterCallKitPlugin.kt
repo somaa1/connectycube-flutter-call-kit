@@ -441,11 +441,37 @@ fun getCallState(applicationContext: Context?, callId: String): String {
 fun getCallData(applicationContext: Context?, callId: String): Map<String, *>? {
     if (applicationContext == null) return null
 
+    // First try to get from regular storage
     val callDataString: String? = getString(applicationContext, callId + "_data")
+    
+    if (!TextUtils.isEmpty(callDataString)) {
+        return getMapFromJsonString(callDataString!!)
+    }
 
-    if (TextUtils.isEmpty(callDataString)) return null
+    // If not found, try to get from persistent shared preferences
+    try {
+        val prefs = applicationContext.getSharedPreferences("connectycube_call_data", Context.MODE_PRIVATE)
+        val persistedData = mutableMapOf<String, Any?>()
+        
+        // Check if we have persisted caller data
+        val sessionId = prefs.getString("${callId}_session_id", null)
+        if (!TextUtils.isEmpty(sessionId)) {
+            persistedData["session_id"] = sessionId
+            persistedData["caller_name"] = prefs.getString("${callId}_caller_name", "Unknown")
+            persistedData["caller_id"] = prefs.getString("${callId}_caller_id", "0")?.toIntOrNull() ?: 0
+            persistedData["call_type"] = prefs.getString("${callId}_call_type", "0")?.toIntOrNull() ?: 0
+            persistedData["photo_url"] = prefs.getString("${callId}_call_photo", null)
+            persistedData["background_color"] = prefs.getString("${callId}_background_color", null)
+            persistedData["custom_body_text"] = prefs.getString("${callId}_custom_body_text", null)
+            
+            Log.d("ConnectycubeFlutterCallKitPlugin", "Retrieved persisted caller data for call: $callId, caller: ${persistedData["caller_name"]}")
+            return persistedData
+        }
+    } catch (e: Exception) {
+        Log.e("ConnectycubeFlutterCallKitPlugin", "Failed to retrieve persisted caller data", e)
+    }
 
-    return getMapFromJsonString(callDataString!!)
+    return null
 }
 
 fun saveCallData(applicationContext: Context?, callId: String, callData: Map<String, *>) {
@@ -462,10 +488,33 @@ fun clearCallData(applicationContext: Context?, callId: String) {
     if (applicationContext == null) return
 
     try {
+        // Clear regular stored data
         remove(applicationContext, callId + "_state")
         remove(applicationContext, callId + "_data")
+        
+        // Clear persisted caller data
+        val prefs = applicationContext.getSharedPreferences("connectycube_call_data", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        
+        // Remove all persisted keys for this call
+        val keysToRemove = listOf(
+            "${callId}_session_id",
+            "${callId}_caller_name", 
+            "${callId}_caller_id",
+            "${callId}_call_type",
+            "${callId}_call_photo",
+            "${callId}_background_color",
+            "${callId}_custom_body_text"
+        )
+        
+        keysToRemove.forEach { key ->
+            editor.remove(key)
+        }
+        editor.apply()
+        
+        Log.d("ConnectycubeFlutterCallKitPlugin", "Cleared all call data for: $callId")
     } catch (e: Exception) {
-        // ignore
+        Log.e("ConnectycubeFlutterCallKitPlugin", "Failed to clear call data", e)
     }
 }
 
@@ -546,15 +595,32 @@ fun getBackgroundRejectHandler(applicationContext: Context?): Long {
 
 fun processCallEnded(applicationContext: Context?, sessionId: String) {
     if (applicationContext == null) return
+    
+    Log.d("ConnectycubeFlutterCallKitPlugin", "[processCallEnded] Processing call end for: $sessionId")
 
+    // Update call state to rejected/ended
     saveCallState(applicationContext, sessionId, CALL_STATE_REJECTED)
+    
+    // Cancel any active notifications
     cancelCallNotification(applicationContext, sessionId)
 
+    // Send local broadcast to close activities and notify listeners
     val broadcastIntent = Intent(ACTION_CALL_ENDED)
     val bundle = Bundle()
     bundle.putString(EXTRA_CALL_ID, sessionId)
     broadcastIntent.putExtras(bundle)
     LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(broadcastIntent)
+    
+    // Also send global broadcast for any system-level listeners
+    try {
+        val globalBroadcast = Intent(ACTION_CALL_ENDED)
+        globalBroadcast.putExtra(EXTRA_CALL_ID, sessionId)
+        applicationContext.sendBroadcast(globalBroadcast)
+        
+        Log.d("ConnectycubeFlutterCallKitPlugin", "[processCallEnded] Sent all cleanup broadcasts for call: $sessionId")
+    } catch (e: Exception) {
+        Log.e("ConnectycubeFlutterCallKitPlugin", "[processCallEnded] Failed to send global broadcast", e)
+    }
 }
 
 

@@ -59,6 +59,7 @@ extension VoIPController: PKPushRegistryDelegate {
             let signalingType = callData["signal_type"] as? String
             
             if (signalingType != nil && (signalingType == "endCall" || signalingType == "rejectCall")) {
+                print("[VoIPController][didReceiveIncomingPushWith] Processing remote call termination: \(signalingType!) for call: \(callId)")
                 self.callKitController.reportCallEnded(uuid: UUID(uuidString: callId.lowercased())!, reason: CallEndedReason.remoteEnded)
                 
                 completion()

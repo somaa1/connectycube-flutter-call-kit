@@ -50,9 +50,30 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
         Log.d(TAG, "[processEndCallEvent]")
 
         val callId = data["session_id"] ?: return
+        
+        Log.d(TAG, "[processEndCallEvent] Processing remote call termination for call: $callId")
 
-
+        // Enhanced cleanup for remote call termination
         processCallEnded(applicationContext, callId)
+        
+        // Ensure notification is cancelled
+        cancelCallNotification(applicationContext, callId)
+        
+        // Additional cleanup for any remaining call activities
+        cleanupIncomingCallActivities(applicationContext, callId)
+    }
+
+    private fun cleanupIncomingCallActivities(context: Context, callId: String) {
+        try {
+            // Send broadcast to close any open IncomingCallActivity
+            val cleanupIntent = Intent(ACTION_CALL_ENDED)
+            cleanupIntent.putExtra(EXTRA_CALL_ID, callId)
+            context.sendBroadcast(cleanupIntent)
+            
+            Log.d(TAG, "[cleanupIncomingCallActivities] Sent cleanup broadcast for call: $callId")
+        } catch (e: Exception) {
+            Log.e(TAG, "[cleanupIncomingCallActivities] Failed to cleanup activities", e)
+        }
     }
 
     private fun processInviteCallEvent(applicationContext: Context, data: Map<String, String>) {

@@ -32,8 +32,21 @@ const val CALL_CHANNEL_NAME = "Calls"
 
 
 fun cancelCallNotification(context: Context, callId: String) {
+    Log.d("NotificationsManager", "[cancelCallNotification] Cancelling notification for call: $callId")
     val notificationManager = NotificationManagerCompat.from(context)
     notificationManager.cancel(callId.hashCode())
+    
+    // Also send broadcast to ensure any listening activities are notified
+    try {
+        val broadcastIntent = Intent(ACTION_CALL_NOTIFICATION_CANCELED)
+        broadcastIntent.putExtra(EXTRA_CALL_ID, callId)
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context.applicationContext)
+            .sendBroadcast(broadcastIntent)
+        
+        Log.d("NotificationsManager", "[cancelCallNotification] Sent notification cancelled broadcast for: $callId")
+    } catch (e: Exception) {
+        Log.e("NotificationsManager", "[cancelCallNotification] Failed to send broadcast", e)
+    }
 }
 
 fun showCallNotification(
@@ -182,6 +195,8 @@ fun postNotification(
     val notification = builder.build()
     notification.flags = notification.flags or NotificationCompat.FLAG_INSISTENT
     notificationManager.notify(notificationId, notification)
+    
+    Log.d("NotificationsManager", "[postNotification] Posted notification with ID: $notificationId")
 }
 
 fun loadPhotoAndPostNotification(
@@ -275,7 +290,7 @@ fun createCallNotification(
         .setContentIntent(pendingIntent)
         .setSound(ringtone)
         .setPriority(NotificationCompat.PRIORITY_MAX)
-        .setTimeoutAfter(60000)
+        .setTimeoutAfter(60000) // 60 seconds timeout
     return notificationBuilder
 }
 

@@ -117,21 +117,36 @@ class CallKitController : NSObject {
                 if(error == nil){
                     self.configureAudioSession(active: true)
                     
-                    self.currentCallData["session_id"] = uuid
-                    self.currentCallData["call_type"] = callType
-                    self.currentCallData["caller_id"] = callInitiatorId
-                    self.currentCallData["caller_name"] = callInitiatorName
-                    self.currentCallData["call_opponents"] = opponents.map { String($0) }.joined(separator: ",")
-                    self.currentCallData["user_info"] = userInfo
+                    // Ensure comprehensive call data storage for persistence
+                    let callData: [String: Any] = [
+                        "session_id": uuid,
+                        "call_type": callType,
+                        "caller_id": callInitiatorId,
+                        "caller_name": callInitiatorName,
+                        "call_opponents": opponents.map { String($0) }.joined(separator: ","),
+                        "user_info": userInfo ?? ""
+                    ]
                     
+                    self.currentCallData = callData
                     self.callStates[uuid] = .pending
-                    self.callsData[uuid] = self.currentCallData
-
-                    self.actionListener?(.incomingCall, UUID(uuidString: uuid)!, self.currentCallData)
+                    self.callsData[uuid] = callData
+                    
+                    // Store in UserDefaults for cross-session persistence
+                    UserDefaults.standard.set(callData, forKey: "connectycube_call_\(uuid)")
+                    UserDefaults.standard.set(uuid, forKey: "connectycube_last_call_id")
+                    UserDefaults.standard.synchronize()
+                    
+                    print("[CallKitController][reportIncomingCall] Persisted call data for: \(uuid), caller: \(callInitiatorName)")
+                    self.actionListener?(.incomingCall, UUID(uuidString: uuid)!, callData)
                 }
             }
         } else if (self.currentCallData["session_id"] as! String == uuid) {
             print("[CallKitController][reportIncomingCall] update existing call: \(uuid)")
+            
+            // Update the caller name in case it changed
+            self.currentCallData["caller_name"] = callInitiatorName
+            self.callsData[uuid]?["caller_name"] = callInitiatorName
+            UserDefaults.standard.set(self.currentCallData, forKey: "connectycube_call_\(uuid)")
             
             provider.reportCall(with: UUID(uuidString: uuid)!, updated: update)
             
@@ -150,7 +165,8 @@ class CallKitController : NSObject {
     }
     
     func reportCallEnded(uuid : UUID, reason: CallEndedReason){
-        print("[CallKitController][reportCallEnded] uuid: \(uuid.uuidString.lowercased())")
+        let uuidString = uuid.uuidString.lowercased()
+        print("[CallKitController][reportCallEnded] uuid: \(uuidString), reason: \(reason)")
         
         var cxReason : CXCallEndedReason
         switch reason {
@@ -162,8 +178,20 @@ class CallKitController : NSObject {
             cxReason = CXCallEndedReason.failed
         }
         
-        self.callStates[uuid.uuidString.lowercased()] = .rejected
+        self.callStates[uuidString] = .rejected
         self.provider.reportCall(with: uuid, endedAt: Date.init(), reason: cxReason)
+        
+        // Clear call data for the ended call
+        self.callsData[uuidString] = nil
+        if self.currentCallData["session_id"] as? String == uuidString {
+            self.currentCallData.removeAll()
+        }
+        
+        // Clear persisted data
+        UserDefaults.standard.removeObject(forKey: "connectycube_call_\(uuidString)")
+        UserDefaults.standard.synchronize()
+        
+        print("[CallKitController][reportCallEnded] Cleared call data for ended call: \(uuidString)")
     }
     
     func getCallState(uuid: String) -> CallState {
@@ -177,12 +205,31 @@ class CallKitController : NSObject {
     }
     
     func getCallData(uuid: String) -> [String: Any]{
-        return self.callsData[uuid.lowercased()] ?? [:]
+        // First try to get from memory
+        let memoryData = self.callsData[uuid.lowercased()] ?? [:]
+        if !memoryData.isEmpty {
+            return memoryData
+        }
+        
+        // Try to get from UserDefaults
+        if let persistedData = UserDefaults.standard.object(forKey: "connectycube_call_\(uuid)") as? [String: Any] {
+            print("[CallKitController][getCallData] Retrieved persisted call data for: \(uuid), caller: \(persistedData["caller_name"] ?? "Unknown")")
+            return persistedData
+        }
+        
+        return [:]
     }
     
     func clearCallData(uuid: String){
         self.callStates.removeAll()
         self.callsData.removeAll()
+        
+        // Clear persisted data
+        UserDefaults.standard.removeObject(forKey: "connectycube_call_\(uuid)")
+        UserDefaults.standard.removeObject(forKey: "connectycube_last_call_id")
+        UserDefaults.standard.synchronize()
+        
+        print("[CallKitController][clearCallData] Cleared all call data for: \(uuid)")
     }
     
     func sendAudioInterruptionNotification(){

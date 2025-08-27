@@ -266,9 +266,13 @@ class ConnectycubeFlutterCallKit {
       'session_id': sessionId,
     }).then((data) {
       if (data == null) {
+        log('[ConnectycubeFlutterCallKit][getCallData] No call data found for session: $sessionId');
         return Future.value(null);
       }
-      return Future.value(Map<String, dynamic>.from(data));
+      
+      final callData = Map<String, dynamic>.from(data);
+      log('[ConnectycubeFlutterCallKit][getCallData] Retrieved call data for session: $sessionId, caller: ${callData["caller_name"] ?? "Unknown"}');
+      return Future.value(callData);
     });
   }
 
@@ -324,6 +328,14 @@ class ConnectycubeFlutterCallKit {
 
       return result;
     });
+  }
+
+  /// Helper method to get caller name for debugging/testing purposes
+  static Future<String?> getCallerName({required String? sessionId}) async {
+    if (sessionId == null) return null;
+    
+    final callData = await getCallData(sessionId: sessionId);
+    return callData?["caller_name"] as String?;
   }
 
   /// Opens the Setting to grant/deny permission for running the fullscreen Intents
