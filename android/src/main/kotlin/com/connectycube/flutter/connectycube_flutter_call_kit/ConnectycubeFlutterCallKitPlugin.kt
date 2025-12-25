@@ -341,6 +341,57 @@ class ConnectycubeFlutterCallKitPlugin : FlutterPlugin, MethodCallHandler,
                 result.success(null)
             }
 
+            "checkLockScreenPermissions" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        val notificationManager = NotificationManagerCompat.from(applicationContext!!)
+                        val keyguardManager = applicationContext!!.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+
+                        val canUseFullScreenIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            notificationManager.canUseFullScreenIntent()
+                        } else {
+                            true // Assume granted for Android 12-13
+                        }
+
+                        val permissionStatus = mapOf(
+                            "canUseFullScreenIntent" to canUseFullScreenIntent,
+                            "notificationsEnabled" to notificationManager.areNotificationsEnabled(),
+                            "isKeyguardLocked" to keyguardManager.isKeyguardLocked,
+                            "isKeyguardSecure" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) keyguardManager.isKeyguardSecure else false,
+                            "isDeviceLocked" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) keyguardManager.isDeviceLocked else keyguardManager.isKeyguardLocked,
+                            "supported" to true
+                        )
+
+                        Log.d("ConnectycubeFlutterCallKitPlugin", "Lock screen permissions check: $permissionStatus")
+                        result.success(permissionStatus)
+                    } catch (e: Exception) {
+                        Log.e("ConnectycubeFlutterCallKitPlugin", "Error checking lock screen permissions", e)
+                        result.success(mapOf("error" to true, "message" to e.message))
+                    }
+                } else {
+                    result.success(mapOf("supported" to false))
+                }
+            }
+
+            "checkNotificationPermission" -> {
+                try {
+                    val notificationManager = NotificationManagerCompat.from(applicationContext!!)
+                    val notificationsEnabled = notificationManager.areNotificationsEnabled()
+
+                    val permissionStatus = mapOf(
+                        "granted" to notificationsEnabled,
+                        "apiLevel" to Build.VERSION.SDK_INT,
+                        "requiresPermission" to (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    )
+
+                    Log.d("ConnectycubeFlutterCallKitPlugin", "Notification permission check: $permissionStatus")
+                    result.success(permissionStatus)
+                } catch (e: Exception) {
+                    Log.e("ConnectycubeFlutterCallKitPlugin", "Error checking notification permission", e)
+                    result.error("permission_check_failed", e.message, null)
+                }
+            }
+
             else ->
                 result.notImplemented()
 

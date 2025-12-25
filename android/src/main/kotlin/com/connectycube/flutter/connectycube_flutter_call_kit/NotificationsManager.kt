@@ -1,5 +1,6 @@
 package com.connectycube.flutter.connectycube_flutter_call_kit
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -18,6 +19,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
+import androidx.core.content.ContextCompat
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import com.connectycube.flutter.connectycube_flutter_call_kit.utils.getDefaultPhoto
@@ -194,8 +196,17 @@ fun postNotification(
 ) {
     val notification = builder.build()
     notification.flags = notification.flags or NotificationCompat.FLAG_INSISTENT
+
+    // On Android 13+ (API 33+), check for POST_NOTIFICATIONS permission
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (!notificationManager.areNotificationsEnabled()) {
+            Log.e("NotificationsManager", "[postNotification] POST_NOTIFICATIONS permission not granted. Cannot show notification.")
+            return
+        }
+    }
+
     notificationManager.notify(notificationId, notification)
-    
+
     Log.d("NotificationsManager", "[postNotification] Posted notification with ID: $notificationId")
 }
 
@@ -359,17 +370,39 @@ fun addCallFullScreenIntent(
         userInfo,
         customBodyText
     )
+
     // Add background color if provided
     if (backgroundColor != null) {
         callFullScreenIntent.putExtra(EXTRA_BACKGROUND_COLOR, backgroundColor)
     }
+
+    // Enhanced flags for Android 12+ to ensure activity launches properly over lock screen
+    callFullScreenIntent.addFlags(
+        Intent.FLAG_ACTIVITY_NEW_TASK or
+        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+        Intent.FLAG_ACTIVITY_NO_USER_ACTION
+    )
+
+    Log.d("NotificationsManager", "Creating full-screen intent for call: $callId with enhanced flags for Android ${Build.VERSION.SDK_INT}")
+
     val fullScreenPendingIntent = PendingIntent.getActivity(
         context,
         callId.hashCode(),
         callFullScreenIntent,
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
     )
+
     notificationBuilder.setFullScreenIntent(fullScreenPendingIntent, true)
+
+    // Enhanced notification properties for Android 12+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        notificationBuilder.setCategory(NotificationCompat.CATEGORY_CALL)
+        notificationBuilder.setForegroundServiceBehavior(
+            NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE
+        )
+        Log.d("NotificationsManager", "Applied Android 12+ notification enhancements for call: $callId")
+    }
 }
 
 fun addCancelCallNotificationIntent(

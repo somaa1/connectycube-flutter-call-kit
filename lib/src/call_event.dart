@@ -134,7 +134,10 @@ class CallEvent {
         other.callerName == callerName &&
         setEquals(other.opponentsIds, opponentsIds) &&
         other.callPhoto == callPhoto &&
-        mapEquals(other.userInfo, userInfo);
+        mapEquals(other.userInfo, userInfo) &&
+        other.customBodyText == customBodyText &&
+        other.backgroundColor == backgroundColor &&
+        other.customNotificationRoute == customNotificationRoute;
   }
 
   @override
@@ -144,6 +147,10 @@ class CallEvent {
         callerId.hashCode ^
         callerName.hashCode ^
         opponentsIds.hashCode ^
-        userInfo.hashCode;
+        callPhoto.hashCode ^
+        userInfo.hashCode ^
+        customBodyText.hashCode ^
+        backgroundColor.hashCode ^
+        customNotificationRoute.hashCode;
   }
 }

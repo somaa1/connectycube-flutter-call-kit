@@ -51,31 +51,47 @@ extension VoIPController: PKPushRegistryDelegate {
     
     func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
         print("[VoIPController][pushRegistry][didReceiveIncomingPushWith] payload: \(payload.dictionaryPayload)")
-        
+
         let callData = payload.dictionaryPayload
-        
-        if type == .voIP{
-            let callId = callData["session_id"] as! String
-            let signalingType = callData["signal_type"] as? String
-            
-            if (signalingType != nil && (signalingType == "endCall" || signalingType == "rejectCall")) {
-                print("[VoIPController][didReceiveIncomingPushWith] Processing remote call termination: \(signalingType!) for call: \(callId)")
-                self.callKitController.reportCallEnded(uuid: UUID(uuidString: callId.lowercased())!, reason: CallEndedReason.remoteEnded)
-                
+
+        if type == .voIP {
+            guard let callId = callData["session_id"] as? String else {
+                print("[VoIPController][didReceiveIncomingPushWith] Missing or invalid session_id")
                 completion()
-            } else if (signalingType != nil && signalingType == "startCall") {
-                let callType = callData["call_type"] as! Int
-                let callInitiatorId = callData["caller_id"] as! Int
-                let callInitiatorName = callData["caller_name"] as! String
-                let callOpponentsString = callData["call_opponents"] as! String
+                return
+            }
+
+            let signalingType = callData["signal_type"] as? String
+
+            if let signalType = signalingType, (signalType == "endCall" || signalType == "rejectCall") {
+                print("[VoIPController][didReceiveIncomingPushWith] Processing remote call termination: \(signalType) for call: \(callId)")
+
+                guard let callUUID = UUID(uuidString: callId.lowercased()) else {
+                    print("[VoIPController][didReceiveIncomingPushWith] Invalid UUID for call termination: \(callId)")
+                    completion()
+                    return
+                }
+
+                self.callKitController.reportCallEnded(uuid: callUUID, reason: CallEndedReason.remoteEnded)
+                completion()
+            } else if let signalType = signalingType, signalType == "startCall" {
+                guard let callType = callData["call_type"] as? Int,
+                      let callInitiatorId = callData["caller_id"] as? Int,
+                      let callInitiatorName = callData["caller_name"] as? String,
+                      let callOpponentsString = callData["call_opponents"] as? String else {
+                    print("[VoIPController][didReceiveIncomingPushWith] Missing required call data")
+                    completion()
+                    return
+                }
+
                 let callOpponents = callOpponentsString.components(separatedBy: ",")
                     .map { Int($0) ?? 0 }
                 let userInfo = callData["user_info"] as? String
-                
+
                 self.callKitController.reportIncomingCall(uuid: callId.lowercased(), callType: callType, callInitiatorId: callInitiatorId, callInitiatorName: callInitiatorName, opponents: callOpponents, userInfo: userInfo) { (error) in
-                    
+
                     completion()
-                    
+
                     if(error == nil){
                         print("[VoIPController][didReceiveIncomingPushWith] reportIncomingCall SUCCESS")
                     } else {

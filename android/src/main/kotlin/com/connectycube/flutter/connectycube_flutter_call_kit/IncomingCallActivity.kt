@@ -47,8 +47,14 @@ fun createStartIncomingScreenIntent(
 
 
 class IncomingCallActivity : Activity() {
+    companion object {
+        private const val TAG = "IncomingCallActivity"
+    }
+
     private lateinit var callStateReceiver: BroadcastReceiver
     private lateinit var localBroadcastManager: LocalBroadcastManager
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var finishRunnable: Runnable? = null
 
     private var callId: String? = null
     private var callType = -1
@@ -63,45 +69,102 @@ class IncomingCallActivity : Activity() {
 
     override fun onCreate(@Nullable savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Diagnostic logging for lock screen state
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        Log.d(TAG, "=== IncomingCallActivity onCreate ===")
+        Log.d(TAG, "Android Version: ${Build.VERSION.SDK_INT}")
+        Log.d(TAG, "Is Keyguard Locked: ${keyguardManager.isKeyguardLocked}")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Log.d(TAG, "Is Keyguard Secure: ${keyguardManager.isKeyguardSecure}")
+            Log.d(TAG, "Is Device Locked: ${keyguardManager.isDeviceLocked}")
+        }
+
         setContentView(resources.getIdentifier("activity_incoming_call", "layout", packageName))
 
+        // Enhanced window flags for Android 12+ lock screen interaction
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
+
+            // CRITICAL for Android 12+: Enable touch interaction over lock screen
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
+                Log.d(TAG, "Added FLAG_DISMISS_KEYGUARD for Android 12+")
+            }
         } else {
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
             )
         }
+
+        // Keep screen on and allow lock while screen is on
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON
+        )
+
+        Log.d(TAG, "Window flags set successfully")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             setInheritShowWhenLocked(true)
         }
 
-        with(getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager) {
+        // Enhanced KeyguardManager integration with fallback for Android 12+
+        with(keyguardManager) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                requestDismissKeyguard(this@IncomingCallActivity, object :
-                    KeyguardManager.KeyguardDismissCallback() {
-                    override fun onDismissError() {
-                        Log.d("IncomingCallActivity", "[KeyguardDismissCallback.onDismissError]")
-                    }
+                Log.d(TAG, "Attempting keyguard dismiss...")
 
-                    override fun onDismissSucceeded() {
-                        Log.d(
-                            "IncomingCallActivity",
-                            "[KeyguardDismissCallback.onDismissSucceeded]"
-                        )
-                    }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+: Enhanced handling with touch interaction fallback
+                    requestDismissKeyguard(this@IncomingCallActivity, object :
+                        KeyguardManager.KeyguardDismissCallback() {
+                        override fun onDismissSucceeded() {
+                            super.onDismissSucceeded()
+                            Log.d(TAG, "Keyguard dismissed successfully")
+                        }
 
-                    override fun onDismissCancelled() {
-                        Log.d(
-                            "IncomingCallActivity",
-                            "[KeyguardDismissCallback.onDismissCancelled]"
-                        )
-                    }
-                })
+                        override fun onDismissError() {
+                            super.onDismissError()
+                            Log.e(TAG, "Failed to dismiss keyguard - device may have secure lock")
+                            // Fallback: Enable touch interaction anyway
+                            enableTouchInteractionOverLockScreen()
+                        }
+
+                        override fun onDismissCancelled() {
+                            super.onDismissCancelled()
+                            Log.w(TAG, "Keyguard dismiss cancelled by user")
+                            // Fallback: Enable touch interaction anyway
+                            enableTouchInteractionOverLockScreen()
+                        }
+                    })
+                } else {
+                    // Android 8-11: Standard handling
+                    requestDismissKeyguard(this@IncomingCallActivity, object :
+                        KeyguardManager.KeyguardDismissCallback() {
+                        override fun onDismissError() {
+                            Log.d(TAG, "[KeyguardDismissCallback.onDismissError]")
+                        }
+
+                        override fun onDismissSucceeded() {
+                            Log.d(TAG, "[KeyguardDismissCallback.onDismissSucceeded]")
+                        }
+
+                        override fun onDismissCancelled() {
+                            Log.d(TAG, "[KeyguardDismissCallback.onDismissCancelled]")
+                        }
+                    })
+                }
+            } else {
+                // Pre-Android 8: Use deprecated but functional method
+                @Suppress("DEPRECATION")
+                if (isKeyguardLocked) {
+                    val keyguardLock = newKeyguardLock(Context.KEYGUARD_SERVICE)
+                    keyguardLock?.disableKeyguard()
+                    Log.d(TAG, "Used deprecated keyguard lock method for pre-Android 8")
+                }
             }
         }
 
@@ -109,6 +172,32 @@ class IncomingCallActivity : Activity() {
         initUi()
         initCallStateReceiver()
         registerCallStateReceiver()
+
+        Log.d(TAG, "IncomingCallActivity initialization complete for call: $callId")
+    }
+
+    /**
+     * Enables touch interaction over lock screen for Android 12+
+     * Called as fallback when keyguard dismiss fails or is cancelled
+     */
+    private fun enableTouchInteractionOverLockScreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
+
+                // Ensure window can receive touch events
+                window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+
+                Log.d(TAG, "Enabled touch interaction over lock screen as fallback")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to enable touch interaction over lock screen", e)
+            }
+        }
     }
 
     private fun initCallStateReceiver() {
@@ -124,12 +213,12 @@ class IncomingCallActivity : Activity() {
                 }
                 when (action) {
                     ACTION_CALL_NOTIFICATION_CANCELED, ACTION_CALL_REJECT, ACTION_CALL_ENDED -> {
-                        Log.d("IncomingCallActivity", "[BroadcastReceiver] Received call end signal: $action for call: $callIdToProcess")
+                        Log.d(TAG, "[BroadcastReceiver] Received call end signal: $action for call: $callIdToProcess")
                         finishAndRemoveTask()
                     }
 
                     ACTION_CALL_ACCEPT -> {
-                        Log.d("IncomingCallActivity", "[BroadcastReceiver] Received call accept signal for call: $callIdToProcess")
+                        Log.d(TAG, "[BroadcastReceiver] Received call accept signal for call: $callIdToProcess")
                         finishDelayed()
                     }
                 }
@@ -138,9 +227,15 @@ class IncomingCallActivity : Activity() {
     }
 
     private fun finishDelayed() {
-        Handler(Looper.getMainLooper()).postDelayed({
-            finishAndRemoveTask()
-        }, 1000)
+        // Cancel any existing delayed finish to prevent memory leaks
+        finishRunnable?.let { mainHandler.removeCallbacks(it) }
+
+        finishRunnable = Runnable {
+            if (!isFinishing) {
+                finishAndRemoveTask()
+            }
+        }
+        mainHandler.postDelayed(finishRunnable!!, 1000)
     }
 
     private fun registerCallStateReceiver() {
@@ -158,12 +253,17 @@ class IncomingCallActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+
+        // Cancel any pending delayed finish to prevent memory leaks
+        finishRunnable?.let { mainHandler.removeCallbacks(it) }
+        finishRunnable = null
+
         unRegisterCallStateReceiver()
-        Log.d("IncomingCallActivity", "[onDestroy] Incoming call activity destroyed for call: $callId")
+        Log.d(TAG, "[onDestroy] Incoming call activity destroyed for call: $callId")
     }
 
     override fun finishAndRemoveTask() {
-        Log.d("IncomingCallActivity", "[finishAndRemoveTask] Closing incoming call activity for call: $callId")
+        Log.d(TAG, "[finishAndRemoveTask] Closing incoming call activity for call: $callId")
         super.finishAndRemoveTask()
     }
 
@@ -187,7 +287,7 @@ class IncomingCallActivity : Activity() {
                 val color = Color.parseColor(backgroundColor)
                 mainBackground.setBackgroundColor(color)
             } catch (e: Exception) {
-                Log.w("IncomingCallActivity", "Invalid background color: $backgroundColor", e)
+                Log.w(TAG, "Invalid background color: $backgroundColor", e)
                 // Keep default color if parsing fails
             }
         }
@@ -243,10 +343,10 @@ class IncomingCallActivity : Activity() {
                         target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
                         isFirstResource: Boolean
                     ): Boolean {
-                        Log.w("IncomingCallActivity", "Failed to load caller image: $callPhoto", e)
+                        Log.w(TAG, "Failed to load caller image: $callPhoto", e)
                         return false // Let Glide handle the error with error drawable
                     }
-                    
+
                     override fun onResourceReady(
                         resource: android.graphics.drawable.Drawable?,
                         model: Any?,
@@ -254,7 +354,7 @@ class IncomingCallActivity : Activity() {
                         dataSource: com.bumptech.glide.load.DataSource?,
                         isFirstResource: Boolean
                     ): Boolean {
-                        Log.d("IncomingCallActivity", "Successfully loaded caller image: $callPhoto")
+                        Log.d(TAG, "Successfully loaded caller image: $callPhoto")
                         return false // Let Glide display the image
                     }
                 })
@@ -332,10 +432,10 @@ class IncomingCallActivity : Activity() {
                     editor.putString("${callId}_${key}", value)
                 }
                 editor.apply()
-                
-                Log.d("IncomingCallActivity", "Persisted caller information for call: $callId, caller: $callInitiatorName")
+
+                Log.d(TAG, "Persisted caller information for call: $callId, caller: $callInitiatorName")
             } catch (e: Exception) {
-                Log.e("IncomingCallActivity", "Failed to persist caller information", e)
+                Log.e(TAG, "Failed to persist caller information", e)
             }
         }
     }

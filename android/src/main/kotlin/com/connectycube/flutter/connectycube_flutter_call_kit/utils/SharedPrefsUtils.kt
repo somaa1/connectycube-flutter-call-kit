@@ -20,7 +20,7 @@ private fun initPreferences(context: Context) {
 fun putBoolean(context: Context, key: String, value: Boolean) {
     initPreferences(context)
     editor!!.putBoolean(key, value)
-    editor!!.commit()
+    editor!!.apply() // Changed from commit() to apply() to prevent ANR
 }
 
 fun getBoolean(context: Context, key: String): Boolean {
@@ -31,7 +31,7 @@ fun getBoolean(context: Context, key: String): Boolean {
 fun putString(context: Context, key: String, value: String?) {
     initPreferences(context)
     editor!!.putString(key, value)
-    editor!!.commit()
+    editor!!.apply() // Changed from commit() to apply() to prevent ANR
 }
 
 fun getString(context: Context, key: String): String? {
@@ -43,7 +43,7 @@ fun getString(context: Context, key: String): String? {
 fun putInt(context: Context, key: String, value: Int) {
     initPreferences(context)
     editor!!.putInt(key, value)
-    editor!!.commit()
+    editor!!.apply() // Changed from commit() to apply() to prevent ANR
 }
 
 fun getInt(context: Context, key: String): Int {
@@ -54,7 +54,7 @@ fun getInt(context: Context, key: String): Int {
 fun putLong(context: Context, key: String, value: Long) {
     initPreferences(context)
     editor!!.putLong(key, value)
-    editor!!.commit()
+    editor!!.apply() // Changed from commit() to apply() to prevent ANR
 }
 
 fun getLong(context: Context, key: String): Long {
@@ -65,7 +65,7 @@ fun getLong(context: Context, key: String): Long {
 fun putDouble(context: Context, key: String, value: Double) {
     initPreferences(context)
     editor!!.putString(key, value.toString())
-    editor!!.commit()
+    editor!!.apply() // Changed from commit() to apply() to prevent ANR
 }
 
 fun getDouble(context: Context, key: String): Double {
@@ -79,7 +79,7 @@ fun getDouble(context: Context, key: String): Double {
 fun remove(context: Context, key: String) {
     initPreferences(context)
     editor!!.remove(key)
-    editor!!.commit()
+    editor!!.apply() // Changed from commit() to apply() to prevent ANR
 }
 
 // Image configuration helpers

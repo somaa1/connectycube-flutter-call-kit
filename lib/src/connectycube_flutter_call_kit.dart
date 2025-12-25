@@ -57,10 +57,18 @@ class ConnectycubeFlutterCallKit {
   /// Notification tap callback (when notification is tapped, not accept/reject buttons)
   static CallEventHandler? _onNotificationTap;
 
+  /// Stream subscription for event channel (to prevent memory leaks)
+  static StreamSubscription? _eventSubscription;
+
+  /// Initialization flag to prevent duplicate initialization
+  static bool _isInitialized = false;
+
   /// Initialize the plugin and provided user callbacks.
   ///
   /// - This function should only be called once at the beginning of
   /// your application.
+  /// - Calling init() multiple times will throw a StateError.
+  /// - To re-initialize, call dispose() first, then call init() again.
   void init(
       {CallEventHandler? onCallAccepted,
       CallEventHandler? onCallRejected,
@@ -71,6 +79,13 @@ class ConnectycubeFlutterCallKit {
       @Deprecated('Use `AndroidManifest.xml` meta-data instead')
       String? notificationIcon,
       String? color}) {
+    // Prevent duplicate initialization
+    if (_isInitialized) {
+      throw StateError(
+          'ConnectycubeFlutterCallKit is already initialized. '
+          'Call dispose() before re-initializing.');
+    }
+
     _onCallAccepted = onCallAccepted;
     _onCallRejected = onCallRejected;
     _onCallIncoming = onCallIncoming;
@@ -83,6 +98,42 @@ class ConnectycubeFlutterCallKit {
         color: color);
 
     initEventsHandler();
+
+    // Mark as initialized
+    _isInitialized = true;
+  }
+
+  /// Dispose of the plugin and clean up resources.
+  ///
+  /// This method should be called when the plugin is no longer needed,
+  /// typically in the dispose() method of your widget or app.
+  ///
+  /// Example:
+  /// ```dart
+  /// @override
+  /// void dispose() {
+  ///   ConnectycubeFlutterCallKit.instance.dispose();
+  ///   super.dispose();
+  /// }
+  /// ```
+  void dispose() {
+    // Cancel event stream subscription
+    _eventSubscription?.cancel();
+    _eventSubscription = null;
+
+    // Clear all callbacks to prevent memory leaks
+    _onCallAccepted = null;
+    _onCallRejected = null;
+    _onCallIncoming = null;
+    _onNotificationTap = null;
+    _onCallRejectedWhenTerminated = null;
+    _onCallAcceptedWhenTerminated = null;
+    _onCallIncomingWhenTerminated = null;
+    onTokenRefreshed = null;
+    onCallMuted = null;
+
+    // Reset initialization flag to allow re-initialization
+    _isInitialized = false;
   }
 
   /// Set a reject call handler function which is called when the app is in the
@@ -151,12 +202,22 @@ class ConnectycubeFlutterCallKit {
   }
 
   static void initEventsHandler() {
-    _eventChannel.receiveBroadcastStream().listen((rawData) {
-      print('[initEventsHandler] rawData: $rawData');
-      final eventData = Map<String, dynamic>.from(rawData);
+    // Cancel existing subscription to prevent memory leaks
+    _eventSubscription?.cancel();
 
-      _processEvent(eventData);
-    });
+    _eventSubscription = _eventChannel.receiveBroadcastStream().listen(
+      (rawData) {
+        print('[initEventsHandler] rawData: $rawData');
+        final eventData = Map<String, dynamic>.from(rawData);
+
+        _processEvent(eventData);
+      },
+      onError: (error) {
+        log('[initEventsHandler] Error receiving event: $error',
+            name: TAG, error: error);
+      },
+      cancelOnError: false,
+    );
   }
 
   /// Sets the additional configs for the Call notification
@@ -345,56 +406,148 @@ class ConnectycubeFlutterCallKit {
     return _methodChannel.invokeMethod("provideFullScreenIntentAccess");
   }
 
+  /// Verifies all required lock screen permissions are granted (Android 12+ only)
+  ///
+  /// Returns a map with permission states:
+  /// - `canUseFullScreenIntent`: Whether full-screen intent permission is granted
+  /// - `notificationsEnabled`: Whether notifications are enabled for the app
+  /// - `isKeyguardLocked`: Whether the device is currently locked
+  /// - `supported`: false if not Android or below Android 12
+  ///
+  /// Example usage:
+  /// ```dart
+  /// final permissions = await ConnectycubeFlutterCallKit.checkLockScreenPermissions();
+  /// if (permissions['canUseFullScreenIntent'] == false) {
+  ///   // Request permission
+  ///   await ConnectycubeFlutterCallKit.provideFullScreenIntentAccess();
+  /// }
+  /// ```
+  static Future<Map<String, dynamic>> checkLockScreenPermissions() async {
+    if (!Platform.isAndroid) {
+      return {'supported': false};
+    }
+
+    try {
+      final result = await _methodChannel.invokeMethod('checkLockScreenPermissions');
+      return Map<String, dynamic>.from(result);
+    } catch (e) {
+      log('[ConnectycubeFlutterCallKit][checkLockScreenPermissions] Error: $e');
+      return {'error': true, 'message': e.toString()};
+    }
+  }
+
+  /// Check if the app has notification permission (Android 13+ / API 33+).
+  ///
+  /// Returns a map containing:
+  /// - `granted` (bool): Whether notification permission is granted
+  /// - `apiLevel` (int): Current Android API level
+  /// - `requiresPermission` (bool): Whether runtime permission is required (API 33+)
+  ///
+  /// For Android versions below 13 (API 33), this will return `granted: true`
+  /// since POST_NOTIFICATIONS permission is not required.
+  ///
+  /// Returns `{'granted': true}` on iOS as notification permissions work differently.
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = await ConnectycubeFlutterCallKit.instance.checkNotificationPermission();
+  /// if (status['granted'] == false && status['requiresPermission'] == true) {
+  ///   // Request POST_NOTIFICATIONS permission using permission_handler or similar
+  /// }
+  /// ```
+  static Future<Map<String, dynamic>> checkNotificationPermission() async {
+    if (!Platform.isAndroid) {
+      // iOS notification permissions work differently
+      return {'granted': true};
+    }
+
+    try {
+      final result = await _methodChannel.invokeMethod('checkNotificationPermission');
+      return Map<String, dynamic>.from(result);
+    } catch (e) {
+      log('[ConnectycubeFlutterCallKit][checkNotificationPermission] Error: $e',
+          name: TAG, error: e);
+      return {'error': true, 'message': e.toString()};
+    }
+  }
+
   static void _processEvent(Map<String, dynamic> eventData) {
-    log('[ConnectycubeFlutterCallKit][_processEvent] eventData: $eventData');
+    try {
+      log('[ConnectycubeFlutterCallKit][_processEvent] eventData: $eventData',
+          name: TAG);
 
-    var event = eventData["event"] as String;
-    var arguments = Map<String, dynamic>.from(eventData['args']);
+      // Validate event data structure
+      if (!eventData.containsKey("event") || !eventData.containsKey('args')) {
+        log('[ConnectycubeFlutterCallKit][_processEvent] Invalid event data structure: missing "event" or "args" key',
+            name: TAG, level: 900); // WARNING level
+        return;
+      }
 
-    switch (event) {
-      case 'voipToken':
-        onTokenRefreshed?.call(arguments['voipToken']);
-        break;
+      final event = eventData["event"];
+      if (event is! String) {
+        log('[ConnectycubeFlutterCallKit][_processEvent] Invalid event type: expected String, got ${event.runtimeType}',
+            name: TAG, level: 900);
+        return;
+      }
 
-      case 'answerCall':
-        var callEvent = CallEvent.fromMap(arguments);
-        _onCallAccepted?.call(callEvent);
+      final arguments = Map<String, dynamic>.from(eventData['args']);
 
-        break;
+      switch (event) {
+        case 'voipToken':
+          final voipToken = arguments['voipToken'];
+          if (voipToken != null) {
+            onTokenRefreshed?.call(voipToken);
+          }
+          break;
 
-      case 'endCall':
-        var callEvent = CallEvent.fromMap(arguments);
+        case 'answerCall':
+          final callEvent = CallEvent.fromMap(arguments);
+          _onCallAccepted?.call(callEvent);
+          break;
 
-        _onCallRejected?.call(callEvent);
+        case 'endCall':
+          final callEvent = CallEvent.fromMap(arguments);
+          _onCallRejected?.call(callEvent);
+          break;
 
-        break;
+        case 'startCall':
+          break;
 
-      case 'startCall':
-        break;
+        case 'setMuted':
+          final sessionId = arguments["session_id"];
+          if (sessionId != null) {
+            onCallMuted?.call(true, sessionId);
+          }
+          break;
 
-      case 'setMuted':
-        onCallMuted?.call(true, arguments["session_id"]);
-        break;
+        case 'setUnMuted':
+          final sessionId = arguments["session_id"];
+          if (sessionId != null) {
+            onCallMuted?.call(false, sessionId);
+          }
+          break;
 
-      case 'setUnMuted':
-        onCallMuted?.call(false, arguments["session_id"]);
-        break;
+        case 'incomingCall':
+          final callEvent = CallEvent.fromMap(arguments);
+          _onCallIncoming?.call(callEvent);
+          break;
 
-      case 'incomingCall':
-        var callEvent = CallEvent.fromMap(arguments);
-        _onCallIncoming?.call(callEvent);
-        break;
+        case 'notificationTap':
+          final callEvent = CallEvent.fromMap(arguments);
+          _onNotificationTap?.call(callEvent);
+          break;
 
-      case 'notificationTap':
-        var callEvent = CallEvent.fromMap(arguments);
-        _onNotificationTap?.call(callEvent);
-        break;
+        case '':
+          // Empty event, ignore
+          break;
 
-      case '':
-        break;
-
-      default:
-        throw Exception("Unrecognized event");
+        default:
+          log('[ConnectycubeFlutterCallKit][_processEvent] Unrecognized event: $event',
+              name: TAG, level: 900);
+      }
+    } catch (e, stackTrace) {
+      log('[ConnectycubeFlutterCallKit][_processEvent] Error processing event: $e',
+          name: TAG, error: e, stackTrace: stackTrace, level: 1000); // SEVERE level
     }
   }
 }
