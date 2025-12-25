@@ -1,9 +1,6 @@
 import 'dart:convert';
-import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart';
-
-import 'call_event_validator.dart';
 
 /// {@template call_event}
 /// Information about the call events (e.g. CallAccepted / CallRejected)
@@ -88,117 +85,22 @@ class CallEvent {
   }
 
   factory CallEvent.fromMap(Map<String, dynamic> map) {
-    // Log incoming data for debugging
-    dev.log('[CallEvent.fromMap] Processing map: $map', name: 'CallEvent');
-
-    try {
-      // Validate and extract all required fields with comprehensive checks
-      final sessionId = CallEventValidator.validateRequiredString(
-        map,
-        'session_id',
-        maxLength: 500, // Reasonable limit for session IDs
-      );
-
-      final callType = CallEventValidator.validateRequiredInt(
-        map,
-        'call_type',
-        min: 0,
-        max: 10, // Reasonable range for call types
-      );
-
-      final callerId = CallEventValidator.validateRequiredInt(
-        map,
-        'caller_id',
-        min: 0,
-      );
-
-      final callerName = CallEventValidator.validateRequiredString(
-        map,
-        'caller_name',
-        maxLength: 200, // Reasonable limit for names
-      );
-
-      final opponentsIds = CallEventValidator.validateOpponentIds(
-        map,
-        'call_opponents',
-      );
-
-      // Extract optional fields with validation
-      final callPhoto = CallEventValidator.validateOptionalString(
-        map,
-        'photo_url',
-        maxLength: 2000, // URLs can be long
-      );
-
-      final userInfo = CallEventValidator.validateUserInfo(
-        map,
-        'user_info',
-      );
-
-      final customBodyText = CallEventValidator.validateOptionalString(
-        map,
-        'custom_body_text',
-        maxLength: 500,
-      );
-
-      final backgroundColor = CallEventValidator.validateOptionalString(
-        map,
-        'background_color',
-        maxLength: 20, // Hex colors are short
-      );
-
-      final customNotificationRoute = CallEventValidator.validateOptionalString(
-        map,
-        'custom_notification_route',
-        maxLength: 200,
-      );
-
-      dev.log(
-        '[CallEvent.fromMap] Successfully parsed CallEvent: sessionId=$sessionId',
-        name: 'CallEvent',
-      );
-
-      return CallEvent(
-        sessionId: sessionId,
-        callType: callType,
-        callerId: callerId,
-        callerName: callerName,
-        opponentsIds: opponentsIds,
-        callPhoto: callPhoto,
-        userInfo: userInfo,
-        customBodyText: customBodyText,
-        backgroundColor: backgroundColor,
-        customNotificationRoute: customNotificationRoute,
-      );
-    } on CallEventValidationException catch (e, stackTrace) {
-      // Log validation errors with full context
-      dev.log(
-        '[CallEvent.fromMap] Validation error: ${e.message}',
-        name: 'CallEvent',
-        error: e,
-        stackTrace: stackTrace,
-        level: 1000, // Error level
-      );
-
-      // Re-throw with context for caller to handle
-      rethrow;
-    } catch (e, stackTrace) {
-      // Catch any unexpected errors
-      dev.log(
-        '[CallEvent.fromMap] Unexpected error parsing CallEvent',
-        name: 'CallEvent',
-        error: e,
-        stackTrace: stackTrace,
-        level: 1000,
-      );
-
-      // Wrap in validation exception for consistent error handling
-      throw CallEventValidationException(
-        'Unexpected error parsing CallEvent: ${e.toString()}',
-        field: 'unknown',
-        value: map,
-      );
-    }
+    print('[CallEvent.fromMap] map: $map');
+    return CallEvent(
+      sessionId: map['session_id'] as String,
+      callType: map['call_type'] as int,
+      callerId: map['caller_id'] as int,
+      callerName: map['caller_name'] as String,
+      opponentsIds:
+          (map['call_opponents'] as String).split(',').map(int.parse).toSet(),
+      callPhoto: map['photo_url'],
+      userInfo: map['user_info'] != null
+          ? Map<String, String>.from(jsonDecode(map['user_info']))
+          : null,
+      customBodyText: map['custom_body_text'] as String?,
+      backgroundColor: map['background_color'] as String?,
+      customNotificationRoute: map['custom_notification_route'] as String?,
+    );
   }
 
   String toJson() => json.encode(toMap());

@@ -35,24 +35,20 @@ import android.app.job.*
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.AsyncTask
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.annotation.Nullable
 import androidx.annotation.RequiresApi
-import kotlinx.coroutines.*
 import java.util.*
 
 
 abstract class JobIntentService : Service() {
     private var mJobImpl: CompatJobEngine? = null
     private var mCompatWorkEnqueuer: WorkEnqueuer? = null
-
-    // PRODUCTION FIX (v3.0): Replaced deprecated AsyncTask with Coroutines
-    private var mCurProcessorJob: Job? = null
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
+    private var mCurProcessor: CommandProcessor? = null
     var mInterruptIfStopped = false
     var mStopped = false
     var mDestroyed = false
@@ -310,16 +306,12 @@ abstract class JobIntentService : Service() {
         }
     }
 
-    /**
-     * Process work in the background using Coroutines.
-     * PRODUCTION FIX (v3.0): Replaced deprecated AsyncTask with Coroutines for better
-     * performance, cancellation handling, and modern Android compatibility.
-     */
-    private fun processWorkInBackground() {
-        var work: GenericWorkItem?
-        if (DEBUG) Log.d(TAG, "Starting to dequeue work...")
-
-        try {
+    /** This is a task to dequeue and process work in the background.  */
+    inner class CommandProcessor :
+        AsyncTask<Void?, Void?, Void?>() {
+        override fun doInBackground(vararg params: Void?): Void? {
+            var work: GenericWorkItem?
+            if (DEBUG) Log.d(TAG, "Starting to dequeue work...")
             while (dequeueWork().also { work = it } != null) {
                 if (DEBUG) Log.d(TAG, "Processing next work: $work")
                 onHandleWork(work?.intent!!)
@@ -327,12 +319,14 @@ abstract class JobIntentService : Service() {
                 work?.complete()
             }
             if (DEBUG) Log.d(TAG, "Done processing work!")
-        } catch (e: CancellationException) {
-            if (DEBUG) Log.d(TAG, "Work processing cancelled")
-            throw e // Re-throw to properly handle coroutine cancellation
-        } catch (e: Exception) {
-            Log.e(TAG, "Error processing work", e)
-        } finally {
+            return null
+        }
+
+        override fun onCancelled(aVoid: Void?) {
+            processorFinished()
+        }
+
+        override fun onPostExecute(aVoid: Void?) {
             processorFinished()
         }
     }
@@ -381,10 +375,6 @@ abstract class JobIntentService : Service() {
         }
     }
 
-    /**
-     * Clean up resources when service is destroyed.
-     * PRODUCTION FIX (v3.0): Cancels coroutine scope to prevent memory leaks.
-     */
     override fun onDestroy() {
         super.onDestroy()
         doStopCurrentWork()
@@ -392,9 +382,6 @@ abstract class JobIntentService : Service() {
             mDestroyed = true
             mCompatWorkEnqueuer!!.serviceProcessingFinished()
         }
-        // Cancel all coroutines to prevent memory leaks
-        serviceScope.cancel()
-        if (DEBUG) Log.d(TAG, "Service destroyed, coroutine scope cancelled")
     }
 
 
@@ -416,10 +403,7 @@ abstract class JobIntentService : Service() {
 
     /**
      * Control whether code executing in [.onHandleWork] will be interrupted if the job
-     * is stopped. By default this is false. If called and set to true, any time [.onStopCurrentWork]
-     * is called, the class will cancel the running coroutine to interrupt the task.
-     *
-     * PRODUCTION FIX (v3.0): Now uses coroutine cancellation instead of AsyncTask.cancel().
+     * is stopped. By default this is false. If called and set to true, any time [ ][.onStopCurrentWork] is called, the class will first call [ AsyncTask.cancel(true)][AsyncTask.cancel] to interrupt the running task.
      *
      * @param interruptIfStopped Set to true to allow the system to interrupt actively running work.
      */
@@ -449,51 +433,35 @@ abstract class JobIntentService : Service() {
         return true
     }
 
-    /**
-     * Stop current work processing using coroutine cancellation.
-     * PRODUCTION FIX (v3.0): Uses coroutine cancellation instead of AsyncTask.cancel().
-     */
     open fun doStopCurrentWork(): Boolean {
-        if (mCurProcessorJob != null && mCurProcessorJob?.isActive == true) {
-            if (mInterruptIfStopped) {
-                mCurProcessorJob?.cancel()
-                if (DEBUG) Log.d(TAG, "Cancelled processor coroutine")
-            }
+        if (mCurProcessor != null) {
+            mCurProcessor!!.cancel(mInterruptIfStopped)
         }
         mStopped = true
         return onStopCurrentWork()
     }
 
-    /**
-     * Ensure work processor is running (using Coroutines instead of AsyncTask).
-     * PRODUCTION FIX (v3.0): Launches coroutine on IO dispatcher for background work processing.
-     */
     open fun ensureProcessorRunningLocked(reportStarted: Boolean) {
-        if (mCurProcessorJob == null || mCurProcessorJob?.isActive != true) {
+        if (mCurProcessor == null) {
+            mCurProcessor = CommandProcessor()
             if (mCompatWorkEnqueuer != null && reportStarted) {
                 mCompatWorkEnqueuer!!.serviceProcessingStarted()
             }
-            if (DEBUG) Log.d(TAG, "Starting processor coroutine")
-            mCurProcessorJob = serviceScope.launch {
-                processWorkInBackground()
-            }
+            if (DEBUG) Log.d(TAG, "Starting processor: $mCurProcessor")
+            mCurProcessor!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR)
         }
     }
 
-    /**
-     * Called when work processor finishes.
-     * PRODUCTION FIX (v3.0): Updated to work with coroutine-based processor.
-     */
     open fun processorFinished() {
         if (mCompatQueue != null) {
             synchronized(mCompatQueue!!) {
-                mCurProcessorJob = null
-                // The coroutine has finished, but we may have gotten more work scheduled in the
-                // meantime. If so, we need to restart the new processor to execute it. If there
+                mCurProcessor = null
+                // The async task has finished, but we may have gotten more work scheduled in the
+                // meantime.  If so, we need to restart the new processor to execute it.  If there
                 // is no more work at this point, either the service is in the process of being
                 // destroyed (because we called stopSelf on the last intent started for it), or
                 // someone has already called startService with a new Intent that will be
-                // arriving shortly. In either case, we want to just leave the service
+                // arriving shortly.  In either case, we want to just leave the service
                 // waiting -- either to get destroyed, or get a new onStartCommand() callback
                 // which will then kick off a new processor.
                 if (mCompatQueue != null && mCompatQueue!!.size > 0) {

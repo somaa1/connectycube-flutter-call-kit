@@ -50,6 +50,15 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
     implementation 'androidx.core:core-ktx:1.12.0'
+
+    // AndroidX Lifecycle for production-grade foreground detection (v3.0)
+    implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+
+    // Kotlin Coroutines for replacing deprecated AsyncTask (v3.0)
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
     implementation 'com.google.android.material:material:1.10.0'
     implementation 'com.skyfishjy.ripplebackground:library:1.0.1'
     implementation 'com.github.bumptech.glide:glide:4.14.2'

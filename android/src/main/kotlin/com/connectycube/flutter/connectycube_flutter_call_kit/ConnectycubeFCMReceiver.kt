@@ -15,9 +15,21 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         Log.d(TAG, "broadcast received for message")
 
-        ContextHolder.applicationContext = context!!.applicationContext
+        // PRODUCTION FIX (v3.0): Added null safety checks
+        if (context == null) {
+            Log.e(TAG, "Context is null, cannot process message")
+            return
+        }
 
-        if (intent!!.extras == null) {
+        ContextHolder.applicationContext = context.applicationContext
+
+        if (intent == null) {
+            Log.e(TAG, "Intent is null, cannot process message")
+            return
+        }
+
+        val extras = intent.extras
+        if (extras == null) {
             Log.d(
                 TAG,
                 "broadcast received but intent contained no extras to process RemoteMessage. Operation cancelled."
@@ -25,7 +37,7 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
             return
         }
 
-        val remoteMessage = RemoteMessage(intent.extras!!)
+        val remoteMessage = RemoteMessage(extras)
 
         val data = remoteMessage.data
         if (data.containsKey("signal_type")) {
@@ -89,14 +101,23 @@ class ConnectycubeFCMReceiver : BroadcastReceiver() {
             return
         }
 
-        val callType = data["call_type"]?.toInt()
-        val callInitiatorId = data["caller_id"]?.toInt()
+        // PRODUCTION FIX (v3.0): Safe type conversions with error handling
+        val callType = data["call_type"]?.toIntOrNull()
+        val callInitiatorId = data["caller_id"]?.toIntOrNull()
         val callInitiatorName = data["caller_name"]
         val callPhoto = data["photo_url"]
         val callOpponentsString = data["call_opponents"]
         var callOpponents = ArrayList<Int>()
+
         if (callOpponentsString != null) {
-            callOpponents = ArrayList(callOpponentsString.split(',').map { it.toInt() })
+            try {
+                callOpponents = ArrayList(
+                    callOpponentsString.split(',')
+                        .mapNotNull { it.trim().toIntOrNull() }
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "[processInviteCallEvent] Failed to parse opponents: $callOpponentsString", e)
+            }
         }
         val userInfo = data["user_info"] ?: JSONObject(emptyMap<String, String>()).toString()
         val customBodyText = data["custom_body_text"]
